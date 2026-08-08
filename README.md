@@ -1,0 +1,30 @@
+# Хищные Бобры — frontend
+
+Frontend БК ВГУ «Хищные Бобры» на Vue 3, Vite и Node.js. Визуальная основа сохранена из
+legacy-сайта: клубная шапка, navy/red палитра, фон `fonbeavers`, когти и светлая текстура матчей.
+
+## Запуск
+
+```cmd
+copy .env.example .env
+npm install
+npm run dev
+```
+
+Сайт откроется на `http://localhost:5173`. Backend ожидается на `http://localhost:8000`.
+
+## Команды
+
+```cmd
+npm run lint:ci
+npm run format:check
+npm run type-check
+npm run build
+```
+
+## Правила оформления
+
+- Использовать общую тему из `src/styles/theme.css`, не создавать отдельный CSS-файл для каждой страницы.
+- Сохранять `#042A4E`, `#CB1914`, белый и светлый ice-фон как основные цвета.
+- Не заменять `fonbeavers.png`, `hat@3x.png`, `kogti.png` и `kogtiniz.png` без отдельного согласования.
+- Улучшать адаптивность и читаемость, сохраняя узнаваемый характер старого сайта.
