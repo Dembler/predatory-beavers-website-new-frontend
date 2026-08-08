@@ -1,8 +1,20 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 
 const menuOpen = ref(false)
+const headerCompact = ref(false)
+
+const updateHeader = () => {
+  headerCompact.value = window.scrollY > 36
+}
+
+onMounted(() => {
+  updateHeader()
+  window.addEventListener('scroll', updateHeader, { passive: true })
+})
+
+onBeforeUnmount(() => window.removeEventListener('scroll', updateHeader))
 
 const links = [
   { label: 'Главная', to: '/' },
@@ -24,9 +36,11 @@ const links = [
       aria-hidden="true"
     />
 
-    <header class="site-header">
+    <header class="site-header" :class="{ 'site-header--compact': headerCompact }">
       <div class="nav-shell">
+        <span class="nav-shell__glow" aria-hidden="true"></span>
         <RouterLink class="wordmark" to="/" aria-label="Хищные Бобры — главная">
+          <span class="wordmark__mark" aria-hidden="true">ХБ</span>
           <span>Хищные Бобры</span>
         </RouterLink>
 
@@ -38,7 +52,7 @@ const links = [
           @click="menuOpen = !menuOpen"
         >
           <span></span><span></span><span></span>
-          <span class="sr-only">Открыть меню</span>
+          <span class="sr-only">{{ menuOpen ? 'Закрыть меню' : 'Открыть меню' }}</span>
         </button>
 
         <nav
@@ -68,7 +82,9 @@ const links = [
           </RouterLink>
         </nav>
 
-        <RouterLink class="nav-cta" to="/matches">Матчи <span>→</span></RouterLink>
+        <RouterLink class="nav-cta" to="/matches">
+          <span class="nav-cta__label">Матчи</span><span aria-hidden="true">→</span>
+        </RouterLink>
       </div>
     </header>
 

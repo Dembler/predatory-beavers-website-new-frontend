@@ -68,6 +68,7 @@ export interface Achievement {
   title: string
   achieved_at: string | null
   media: Media
+  team: Team
 }
 export interface HomeData {
   next_match: Match | null

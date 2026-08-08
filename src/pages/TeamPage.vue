@@ -29,16 +29,16 @@ const { data, pending, error, load } = useLoad(() =>
             <RouterLink
               v-for="player in data?.items"
               :key="player.id"
-              class="content-card"
+              class="content-card player-card"
               :to="`/players/${player.id}`"
-              ><img
+              ><div class="player-card__photo"><img
                 v-if="player.photo"
                 :src="mediaUrl(player.photo.content_url)"
-                :alt="player.full_name"
-                style="width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px"
-              />
-              <h3>{{ player.full_name }}</h3>
-              <p>{{ player.position || player.age_text }}</p></RouterLink
+                :alt="player.photo.alt_text || player.full_name"
+              /><span v-else aria-hidden="true">ХБ</span></div>
+              <div class="player-card__body"><small>{{ player.position || 'Игрок команды' }}</small>
+              <h3>{{ player.full_name }}</h3><p>{{ player.age_text || 'БК ВГУ' }}</p>
+              <b>Профиль игрока →</b></div></RouterLink
             >
           </div></AsyncState
         >

@@ -5,12 +5,25 @@ import AsyncState from '@/components/AsyncState.vue'
 import MatchCard from '@/components/MatchCard.vue'
 import { useLoad } from '@/composables/useLoad'
 import { apiRequest } from '@/shared/api'
-import type { ApiResponse, HomeData } from '@/shared/types'
+import type { Achievement, ApiResponse, HomeData, Match, Page } from '@/shared/types'
 
 const { data, pending, error, load } = useLoad(() =>
   apiRequest<ApiResponse<HomeData>>('/api/v1/home'),
 )
 const home = computed(() => data.value?.data)
+const { data: achievementsData } = useLoad(() =>
+  apiRequest<Page<Achievement>>('/api/v1/achievements?page_size=6'),
+)
+const achievements = computed(() => achievementsData.value?.items ?? [])
+const matchTimeline = computed<Match[]>(() => {
+  const matches = [...(home.value?.recent_results ?? [])]
+  if (home.value?.next_match) matches.push(home.value.next_match)
+  return matches.sort(
+    (left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime(),
+  )
+})
+const shortDate = (value: string) =>
+  new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(value))
 </script>
 
 <template>
@@ -58,6 +71,29 @@ const home = computed(() => data.value?.data)
       </div>
     </section>
 
+    <section v-if="matchTimeline.length" class="season-pulse">
+      <div class="container">
+        <div class="season-pulse__heading">
+          <div><p class="eyebrow">Календарь</p><h2>Пульс сезона</h2></div>
+          <RouterLink class="text-link" to="/matches">Все матчи <span>→</span></RouterLink>
+        </div>
+        <div class="match-timeline" aria-label="Последние и ближайшие матчи">
+          <article
+            v-for="match in matchTimeline"
+            :key="match.id"
+            class="match-timeline__item"
+            :class="{ 'match-timeline__item--next': match.id === home?.next_match?.id }"
+          >
+            <span class="match-timeline__dot"></span>
+            <time :datetime="match.starts_at">{{ shortDate(match.starts_at) }}</time>
+            <strong>{{ match.home_team_name }} — {{ match.away_team_name }}</strong>
+            <b v-if="match.home_score !== null">{{ match.home_score }}:{{ match.away_score }}</b>
+            <b v-else>Скоро</b>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section teams-section">
       <div class="container">
         <div class="section-heading">
@@ -82,6 +118,21 @@ const home = computed(() => data.value?.data)
               <small>БК ВГУ</small><strong>Женская команда</strong><b>Смотреть состав →</b>
             </div>
           </RouterLink>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="achievements.length" class="section achievements-section">
+      <div class="container">
+        <div class="section-heading">
+          <div><p class="eyebrow">История побед</p><h2>Достижения клуба</h2></div>
+          <RouterLink class="text-link" to="/club">О клубе <span>→</span></RouterLink>
+        </div>
+        <div class="achievement-grid">
+          <article v-for="achievement in achievements" :key="achievement.id" class="achievement-card">
+            <span>{{ achievement.achieved_at?.slice(0, 4) || '—' }}</span>
+            <div><small>{{ achievement.team.name }}</small><h3>{{ achievement.title }}</h3></div>
+          </article>
         </div>
       </div>
     </section>

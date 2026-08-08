@@ -5,7 +5,7 @@ import { useLoad } from '@/composables/useLoad'
 import { apiRequest } from '@/shared/api'
 import type { ApiResponse, Standings } from '@/shared/types'
 const team = ref('men')
-const season = ref('2026-2027')
+const season = ref('2024-2025')
 const { data, pending, error, load } = useLoad(() =>
   apiRequest<ApiResponse<Standings>>(`/api/v1/standings?team=${team.value}&season=${season.value}`),
 )
