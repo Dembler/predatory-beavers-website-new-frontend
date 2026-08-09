@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
+import IntroReveal from '@/components/IntroReveal.vue'
 
 const menuOpen = ref(false)
 const headerCompact = ref(false)
@@ -28,6 +29,7 @@ const links = [
 
 <template>
   <div class="site-shell">
+    <IntroReveal />
     <img class="screen-claw screen-claw--right" src="/images/kogti.png" alt="" aria-hidden="true" />
     <img
       class="screen-claw screen-claw--left"
@@ -40,7 +42,9 @@ const links = [
       <div class="nav-shell">
         <span class="nav-shell__glow" aria-hidden="true"></span>
         <RouterLink class="wordmark" to="/" aria-label="Хищные Бобры — главная">
-          <span class="wordmark__mark" aria-hidden="true">ХБ</span>
+          <span class="wordmark__mark" aria-hidden="true">
+            <img src="/images/brand/club-emblem.png" alt="" />
+          </span>
           <span>Хищные Бобры</span>
         </RouterLink>
 
@@ -91,7 +95,10 @@ const links = [
     <main><RouterView /></main>
     <footer class="site-footer">
       <div class="container footer-inner">
-        <div class="footer-brand">Хищные Бобры</div>
+        <div class="footer-brand">
+          <img src="/images/brand/club-emblem.png" alt="" aria-hidden="true" />
+          <span>Хищные Бобры</span>
+        </div>
         <span>Баскетбольный клуб ВГУ</span>
         <span>© {{ new Date().getFullYear() }}</span>
       </div>

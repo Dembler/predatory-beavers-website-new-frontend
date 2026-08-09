@@ -1,4 +1,4 @@
-const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '')
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 
 export async function apiRequest<T>(path: string): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, { credentials: 'include' })

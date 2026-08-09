@@ -22,8 +22,6 @@ const matchTimeline = computed<Match[]>(() => {
     (left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime(),
   )
 })
-const shortDate = (value: string) =>
-  new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(value))
 </script>
 
 <template>
@@ -36,12 +34,14 @@ const shortDate = (value: string) =>
       />
       <div class="home-hero__shade"></div>
       <div class="container home-hero__content">
-        <p class="eyebrow">Баскетбольный клуб ВГУ</p>
-        <h1>Баскетбол.<br />Команда.<br /><span>Университет.</span></h1>
-        <p class="home-hero__lead">Одна команда на площадке и за её пределами.</p>
+        <h1><span>Мы —</span><br />Хищные<br />Бобры.</h1>
+        <p class="home-hero__lead">
+          <strong>Баскетбольный клуб ВГУ.</strong><br />
+          Играем вместе. Бьёмся за каждый мяч.
+        </p>
         <div class="hero-actions">
-          <RouterLink class="button" to="/club">Узнать о клубе</RouterLink>
-          <RouterLink class="text-link" to="/teams/men">Смотреть состав <span>→</span></RouterLink>
+          <RouterLink class="button" to="/club">О клубе</RouterLink>
+          <RouterLink class="text-link" to="/teams/men">Наша команда <span>→</span></RouterLink>
         </div>
       </div>
     </section>
@@ -64,7 +64,7 @@ const shortDate = (value: string) =>
         <aside class="club-note">
           <span class="club-note__number">01</span>
           <p class="eyebrow">Хищные Бобры</p>
-          <h2>Одна команда.<br />Один университет.</h2>
+          <h2>Одна команда.<br />Один характер.</h2>
           <p>Мужская и женская команды ВГУ, объединённые игрой, характером и поддержкой трибун.</p>
           <RouterLink class="text-link" to="/club">История клуба <span>→</span></RouterLink>
         </aside>
@@ -74,22 +74,14 @@ const shortDate = (value: string) =>
     <section v-if="matchTimeline.length" class="season-pulse">
       <div class="container">
         <div class="season-pulse__heading">
-          <div><p class="eyebrow">Календарь</p><h2>Пульс сезона</h2></div>
+          <div>
+            <p class="eyebrow">Календарь</p>
+            <h2>Пульс сезона</h2>
+          </div>
           <RouterLink class="text-link" to="/matches">Все матчи <span>→</span></RouterLink>
         </div>
-        <div class="match-timeline" aria-label="Последние и ближайшие матчи">
-          <article
-            v-for="match in matchTimeline"
-            :key="match.id"
-            class="match-timeline__item"
-            :class="{ 'match-timeline__item--next': match.id === home?.next_match?.id }"
-          >
-            <span class="match-timeline__dot"></span>
-            <time :datetime="match.starts_at">{{ shortDate(match.starts_at) }}</time>
-            <strong>{{ match.home_team_name }} — {{ match.away_team_name }}</strong>
-            <b v-if="match.home_score !== null">{{ match.home_score }}:{{ match.away_score }}</b>
-            <b v-else>Скоро</b>
-          </article>
+        <div class="season-match-grid" aria-label="Последние и ближайшие матчи">
+          <MatchCard v-for="match in matchTimeline" :key="match.id" :match="match" />
         </div>
       </div>
     </section>
@@ -125,13 +117,23 @@ const shortDate = (value: string) =>
     <section v-if="achievements.length" class="section achievements-section">
       <div class="container">
         <div class="section-heading">
-          <div><p class="eyebrow">История побед</p><h2>Достижения клуба</h2></div>
+          <div>
+            <p class="eyebrow">История побед</p>
+            <h2>Достижения клуба</h2>
+          </div>
           <RouterLink class="text-link" to="/club">О клубе <span>→</span></RouterLink>
         </div>
         <div class="achievement-grid">
-          <article v-for="achievement in achievements" :key="achievement.id" class="achievement-card">
+          <article
+            v-for="achievement in achievements"
+            :key="achievement.id"
+            class="achievement-card"
+          >
             <span>{{ achievement.achieved_at?.slice(0, 4) || '—' }}</span>
-            <div><small>{{ achievement.team.name }}</small><h3>{{ achievement.title }}</h3></div>
+            <div>
+              <small>{{ achievement.team.name }}</small>
+              <h3>{{ achievement.title }}</h3>
+            </div>
           </article>
         </div>
       </div>
@@ -139,12 +141,18 @@ const shortDate = (value: string) =>
 
     <section class="section results-section">
       <div class="container">
-        <div class="section-heading">
-          <div>
+        <div class="section-heading results-section__heading">
+          <div class="results-section__title">
             <p class="eyebrow">Сезон</p>
             <h2>Последние результаты</h2>
+            <div class="results-section__club">
+              <img src="/images/brand/club-emblem.png" alt="" />
+              <p><strong>Хищные Бобры / ВГУ</strong><span>Баскетбольный клуб</span></p>
+            </div>
           </div>
-          <RouterLink class="button button--small" to="/matches">Все матчи</RouterLink>
+          <RouterLink class="button button--small" to="/matches"
+            >Все матчи <span>→</span></RouterLink
+          >
         </div>
         <AsyncState
           :pending="pending"
@@ -153,7 +161,12 @@ const shortDate = (value: string) =>
           @retry="load"
         >
           <div class="match-grid">
-            <MatchCard v-for="match in home?.recent_results" :key="match.id" :match="match" />
+            <MatchCard
+              v-for="match in home?.recent_results"
+              :key="match.id"
+              :match="match"
+              result-card
+            />
           </div>
         </AsyncState>
       </div>
