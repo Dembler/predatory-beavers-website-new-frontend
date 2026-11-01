@@ -6,7 +6,7 @@ export const router = createRouter({
     { path: '/', component: () => import('./pages/HomePage.vue'), meta: { title: 'Главная' } },
     { path: '/club', component: () => import('./pages/ClubPage.vue'), meta: { title: 'О клубе' } },
     {
-      path: '/teams/:category',
+      path: '/teams/:category(men|women)',
       component: () => import('./pages/TeamPage.vue'),
       meta: { title: 'Команда' },
     },
@@ -35,9 +35,22 @@ export const router = createRouter({
       component: () => import('./pages/ContactsPage.vue'),
       meta: { title: 'Контакты' },
     },
-    { path: '/:pathMatch(.*)*', redirect: '/' },
+    {
+      path: '/admin',
+      component: () => import('./pages/AdminPage.vue'),
+      meta: { title: 'Управление клубом' },
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      component: () => import('./pages/NotFoundPage.vue'),
+      meta: { title: 'Страница не найдена' },
+    },
   ],
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior: (to, from, savedPosition) => {
+    if (savedPosition) return savedPosition
+    if (to.path === from.path && to.path !== '/admin') return false
+    return { top: 0 }
+  },
 })
 
 router.afterEach((route) => {

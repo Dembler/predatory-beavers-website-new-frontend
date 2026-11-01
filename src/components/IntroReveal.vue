@@ -4,11 +4,11 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 const visible = ref(false)
 const phase = ref<'ready' | 'claws' | 'tearing' | 'settling' | 'marked'>('ready')
 const timers: number[] = []
-const introLeadMs = 1900
+const introLeadMs = 600
 const impactMs = 250
 const tearTravelMs = 450
 const settleMs = 200
-const finalHoldMs = 300
+const finalHoldMs = 150
 
 const clearTimers = () => {
   timers.splice(0).forEach(window.clearTimeout)
@@ -17,7 +17,11 @@ const clearTimers = () => {
 const finish = () => {
   if (!visible.value) return
   clearTimers()
-  if (!import.meta.env.DEV) sessionStorage.setItem('pb-intro-seen', '1')
+  try {
+    sessionStorage.setItem('pb-intro-seen', '1')
+  } catch {
+    /* Storage can be disabled by the browser. */
+  }
   visible.value = false
 }
 
@@ -32,9 +36,17 @@ const onKeydown = (event: KeyboardEvent) => {
 }
 
 onMounted(() => {
+  let seen = false
+  try {
+    seen = Boolean(sessionStorage.getItem('pb-intro-seen'))
+  } catch {
+    /* Continue without storage. */
+  }
   if (
-    !import.meta.env.DEV &&
-    (sessionStorage.getItem('pb-intro-seen') || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    seen ||
+    window.matchMedia('(max-width: 900px)').matches ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+    window.location.pathname !== '/'
   ) {
     return
   }
@@ -82,12 +94,12 @@ const cleanupAfterLeave = () => {
         <div class="intro-reveal__trace-stage" aria-hidden="true">
           <img
             class="intro-reveal__trace intro-reveal__trace--left"
-            src="/images/brand/intro-scratch-clean.png"
+            src="/images/brand/intro-scratch-clean.webp"
             alt=""
           />
           <img
             class="intro-reveal__trace intro-reveal__trace--right"
-            src="/images/brand/intro-scratch-clean.png"
+            src="/images/brand/intro-scratch-clean.webp"
             alt=""
           />
           <span class="intro-reveal__impact"></span>
@@ -96,19 +108,25 @@ const cleanupAfterLeave = () => {
         </div>
 
         <div class="intro-reveal__brand">
-          <img src="/images/brand/club-emblem.png" alt="Хищные Бобры" />
+          <img src="/images/brand/club-emblem.webp" alt="Хищные Бобры" />
           <p>Баскетбольный клуб ВГУ</p>
           <strong>Хищные Бобры</strong>
         </div>
 
         <div class="intro-reveal__claw-stage" aria-hidden="true">
-          <img class="intro-reveal__claw intro-reveal__claw--left" src="/images/brand/intro-claw-single.png" alt="" />
-          <img class="intro-reveal__claw intro-reveal__claw--right" src="/images/brand/intro-claw-single.png" alt="" />
+          <img
+            class="intro-reveal__claw intro-reveal__claw--left"
+            src="/images/brand/intro-claw-single.webp"
+            alt=""
+          />
+          <img
+            class="intro-reveal__claw intro-reveal__claw--right"
+            src="/images/brand/intro-claw-single.webp"
+            alt=""
+          />
         </div>
 
-        <button class="intro-reveal__skip" type="button" @click.stop="skip">
-          Пропустить
-        </button>
+        <button class="intro-reveal__skip" type="button" @click.stop="skip">Пропустить</button>
       </div>
     </Transition>
   </Teleport>

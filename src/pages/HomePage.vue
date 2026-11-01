@@ -3,25 +3,24 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import MatchCard from '@/components/MatchCard.vue'
+import RecentResults from '@/components/RecentResults.vue'
 import { useLoad } from '@/composables/useLoad'
+import { preferredTeamPath } from '@/composables/useTeamPreference'
 import { apiRequest } from '@/shared/api'
-import type { Achievement, ApiResponse, HomeData, Match, Page } from '@/shared/types'
+import type { Achievement, ApiResponse, HomeData, Page } from '@/shared/types'
 
 const { data, pending, error, load } = useLoad(() =>
   apiRequest<ApiResponse<HomeData>>('/api/v1/home'),
 )
 const home = computed(() => data.value?.data)
-const { data: achievementsData } = useLoad(() =>
-  apiRequest<Page<Achievement>>('/api/v1/achievements?page_size=6'),
-)
+const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recent_results[0])
+const {
+  data: achievementsData,
+  pending: achievementsPending,
+  error: achievementsError,
+  load: loadAchievements,
+} = useLoad(() => apiRequest<Page<Achievement>>('/api/v1/achievements?page_size=6'))
 const achievements = computed(() => achievementsData.value?.items ?? [])
-const matchTimeline = computed<Match[]>(() => {
-  const matches = [...(home.value?.recent_results ?? [])]
-  if (home.value?.next_match) matches.push(home.value.next_match)
-  return matches.sort(
-    (left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime(),
-  )
-})
 </script>
 
 <template>
@@ -29,7 +28,7 @@ const matchTimeline = computed<Match[]>(() => {
     <section class="home-hero">
       <img
         class="home-hero__photo"
-        src="/images/team-community.jpg"
+        src="/images/team-community.webp"
         alt="Команда и болельщики Хищных Бобров"
       />
       <div class="home-hero__shade"></div>
@@ -41,7 +40,9 @@ const matchTimeline = computed<Match[]>(() => {
         </p>
         <div class="hero-actions">
           <RouterLink class="button" to="/club">О клубе</RouterLink>
-          <RouterLink class="text-link" to="/teams/men">Наша команда <span>→</span></RouterLink>
+          <RouterLink class="text-link" :to="preferredTeamPath"
+            >Наша команда <span>→</span></RouterLink
+          >
         </div>
       </div>
     </section>
@@ -52,12 +53,31 @@ const matchTimeline = computed<Match[]>(() => {
           <div class="section-heading section-heading--compact">
             <div>
               <p class="eyebrow">Будь в игре</p>
-              <h2>Ближайший матч</h2>
+              <h2>
+                {{
+                  home?.next_match?.status === 'live'
+                    ? 'Сейчас на площадке'
+                    : home?.next_match
+                      ? 'Ближайший матч'
+                      : featuredMatch
+                        ? 'Последний матч'
+                        : 'Ближайший матч'
+                }}
+              </h2>
             </div>
             <RouterLink class="text-link" to="/matches">Все матчи <span>→</span></RouterLink>
           </div>
-          <AsyncState :pending="pending" :error="error" :empty="!home?.next_match" @retry="load">
-            <MatchCard v-if="home?.next_match" :match="home.next_match" featured />
+          <AsyncState
+            :pending="pending"
+            :error="error"
+            :empty="!featuredMatch"
+            empty-text="Ближайший матч пока не назначен."
+            @retry="load"
+          >
+            <p v-if="!home?.next_match" class="dashboard-main__schedule-note">
+              Новая игра пока не назначена. Вот результат последней встречи.
+            </p>
+            <MatchCard v-if="featuredMatch" :match="featuredMatch" featured />
           </AsyncState>
         </div>
 
@@ -71,21 +91,6 @@ const matchTimeline = computed<Match[]>(() => {
       </div>
     </section>
 
-    <section v-if="matchTimeline.length" class="season-pulse">
-      <div class="container">
-        <div class="season-pulse__heading">
-          <div>
-            <p class="eyebrow">Календарь</p>
-            <h2>Пульс сезона</h2>
-          </div>
-          <RouterLink class="text-link" to="/matches">Все матчи <span>→</span></RouterLink>
-        </div>
-        <div class="season-match-grid" aria-label="Последние и ближайшие матчи">
-          <MatchCard v-for="match in matchTimeline" :key="match.id" :match="match" />
-        </div>
-      </div>
-    </section>
-
     <section class="section teams-section">
       <div class="container">
         <div class="section-heading">
@@ -93,18 +98,28 @@ const matchTimeline = computed<Match[]>(() => {
             <p class="eyebrow">Игроки</p>
             <h2>Наши команды</h2>
           </div>
-          <p class="section-intro">Составы, игровые номера и информация о каждом игроке клуба.</p>
+          <p class="section-intro">Составы, амплуа и информация о каждом игроке клуба.</p>
         </div>
         <div class="team-grid team-grid--feature">
           <RouterLink class="team-card" to="/teams/men">
-            <img src="/images/team-men.jpg" alt="Мужская команда Хищных Бобров" />
+            <img
+              src="/images/team-men.webp"
+              alt="Мужская команда Хищных Бобров"
+              loading="lazy"
+              decoding="async"
+            />
             <span class="team-card__index">01</span>
             <div class="team-card__body">
               <small>БК ВГУ</small><strong>Мужская команда</strong><b>Смотреть состав →</b>
             </div>
           </RouterLink>
           <RouterLink class="team-card" to="/teams/women">
-            <img src="/images/team-women.jpg" alt="Женская команда Хищных Бобров" />
+            <img
+              src="/images/team-women.webp"
+              alt="Женская команда Хищных Бобров"
+              loading="lazy"
+              decoding="async"
+            />
             <span class="team-card__index">02</span>
             <div class="team-card__body">
               <small>БК ВГУ</small><strong>Женская команда</strong><b>Смотреть состав →</b>
@@ -114,7 +129,10 @@ const matchTimeline = computed<Match[]>(() => {
       </div>
     </section>
 
-    <section v-if="achievements.length" class="section achievements-section">
+    <section
+      v-if="achievementsPending || achievementsError || achievements.length"
+      class="section achievements-section"
+    >
       <div class="container">
         <div class="section-heading">
           <div>
@@ -123,34 +141,35 @@ const matchTimeline = computed<Match[]>(() => {
           </div>
           <RouterLink class="text-link" to="/club">О клубе <span>→</span></RouterLink>
         </div>
-        <div class="achievement-grid">
-          <article
-            v-for="achievement in achievements"
-            :key="achievement.id"
-            class="achievement-card"
-          >
-            <span>{{ achievement.achieved_at?.slice(0, 4) || '—' }}</span>
-            <div>
-              <small>{{ achievement.team.name }}</small>
-              <h3>{{ achievement.title }}</h3>
-            </div>
-          </article>
-        </div>
+        <AsyncState
+          :pending="achievementsPending"
+          :error="achievementsError"
+          @retry="loadAchievements"
+        >
+          <div class="achievement-grid">
+            <article
+              v-for="achievement in achievements"
+              :key="achievement.id"
+              class="achievement-card"
+            >
+              <span>{{ achievement.achieved_at?.slice(0, 4) || '—' }}</span>
+              <div>
+                <small>{{ achievement.team.name }}</small>
+                <h3>{{ achievement.title }}</h3>
+              </div>
+            </article>
+          </div>
+        </AsyncState>
       </div>
     </section>
 
-    <section class="section results-section">
+    <section class="section results-section" aria-labelledby="recent-results-title">
       <div class="container">
         <div class="section-heading results-section__heading">
           <div class="results-section__title">
-            <p class="eyebrow">Сезон</p>
-            <h2>Последние результаты</h2>
-            <div class="results-section__club">
-              <img src="/images/brand/club-emblem.png" alt="" />
-              <p><strong>Хищные Бобры / ВГУ</strong><span>Баскетбольный клуб</span></p>
-            </div>
+            <h2 id="recent-results-title">Последние результаты</h2>
           </div>
-          <RouterLink class="button button--small" to="/matches"
+          <RouterLink class="results-section__link" to="/matches"
             >Все матчи <span>→</span></RouterLink
           >
         </div>
@@ -158,18 +177,26 @@ const matchTimeline = computed<Match[]>(() => {
           :pending="pending"
           :error="error"
           :empty="!home?.recent_results.length"
+          empty-text="Результатов пока нет."
           @retry="load"
         >
-          <div class="match-grid">
-            <MatchCard
-              v-for="match in home?.recent_results"
-              :key="match.id"
-              :match="match"
-              result-card
-            />
-          </div>
+          <RecentResults :matches="home?.recent_results ?? []" />
         </AsyncState>
       </div>
     </section>
   </div>
 </template>
+
+<style scoped>
+.dashboard-main__schedule-note {
+  margin: 0 0 14px;
+  color: #d3dfeb;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .dashboard-main__schedule-note {
+    color: #435a70;
+  }
+}
+</style>

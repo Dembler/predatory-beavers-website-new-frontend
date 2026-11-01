@@ -5,12 +5,12 @@ import { defineConfig } from 'vite'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 const backendProxy = {
-  target: 'http://127.0.0.1:8000',
+  target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:8000',
   changeOrigin: true,
 }
 
 export default defineConfig({
-  plugins: [vue(), vueDevTools()],
+  plugins: [vue(), ...(process.env.VITE_DEVTOOLS === 'true' ? [vueDevTools()] : [])],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     host: '0.0.0.0',

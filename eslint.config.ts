@@ -3,7 +3,7 @@ import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescri
 import pluginVue from 'eslint-plugin-vue'
 
 export default defineConfigWithVueTs(
-  { ignores: ['dist/**', '.nuxt/**', '.output/**'] },
+  { ignores: ['dist/**', '.nuxt/**', '.output/**', '.data/**'] },
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
   skipFormatting,

@@ -1,0 +1,68 @@
+[
+  {
+    "source": "/images/team-community.jpg",
+    "output": "/images/team-community.webp",
+    "width": 1920,
+    "height": 1280,
+    "alpha": false,
+    "sourceBytes": 1532568,
+    "outputBytes": 354464,
+    "savedPercent": 76.9,
+    "sourceSha256": "0be92ce48669744c6080497814416aa685719f48cf93afea3504d42ee8d4c521"
+  },
+  {
+    "source": "/images/team-men.jpg",
+    "output": "/images/team-men.webp",
+    "width": 1440,
+    "height": 960,
+    "alpha": false,
+    "sourceBytes": 1062027,
+    "outputBytes": 273784,
+    "savedPercent": 74.2,
+    "sourceSha256": "2a806a8f8075bf10154da8ca44f5d5fee47e029cb44153bbf73fbbf98e20e4d8"
+  },
+  {
+    "source": "/images/team-women.jpg",
+    "output": "/images/team-women.webp",
+    "width": 1440,
+    "height": 1080,
+    "alpha": false,
+    "sourceBytes": 1575604,
+    "outputBytes": 228492,
+    "savedPercent": 85.5,
+    "sourceSha256": "8bd23f23bb2a24d526766db5689c733208f5d5c791f22bb3364bcc3642893ee8"
+  },
+  {
+    "source": "/images/brand/intro-claw-single.png",
+    "output": "/images/brand/intro-claw-single.webp",
+    "width": 1024,
+    "height": 1536,
+    "alpha": true,
+    "sourceBytes": 2530711,
+    "outputBytes": 325300,
+    "savedPercent": 87.1,
+    "sourceSha256": "1b5a883161dd2d8040b0bd11fd6572534876fda5e173a27d18bffd0a2aba7c7b"
+  },
+  {
+    "source": "/images/brand/intro-scratch-clean.png",
+    "output": "/images/brand/intro-scratch-clean.webp",
+    "width": 853,
+    "height": 1280,
+    "alpha": true,
+    "sourceBytes": 881918,
+    "outputBytes": 261760,
+    "savedPercent": 70.3,
+    "sourceSha256": "b4958fbdda09fd3b211621f64b3e048fe7d23bc32440a3088b831c52eb0adb58"
+  },
+  {
+    "source": "/images/brand/club-emblem.png",
+    "output": "/images/brand/club-emblem.webp",
+    "width": 2418,
+    "height": 2051,
+    "alpha": true,
+    "sourceBytes": 659825,
+    "outputBytes": 187978,
+    "savedPercent": 71.5,
+    "sourceSha256": "5466479a93d2caaefbcef1a62899c50b1003ee28c957f9c70d5433b971263652"
+  }
+]
