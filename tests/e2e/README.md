@@ -41,4 +41,6 @@ The suite checks desktop and mobile routes, overflow, browser runtime exceptions
 
 `match-dates.spec.ts` uses a fixed browser clock to distinguish future scheduled matches from past games awaiting an official result. Live games remain visible among upcoming games. Past scheduled records remain available through the status filter and never turn into a false empty state.
 
+`match-outcomes.spec.ts` checks final outcomes in the schedule, the featured home card and recent results. Its explicit home/away fixtures cover wins, losses, a zero draw, zero scores, incomplete scores and unfinished games. The signed point difference always belongs to the club; displayed scores keep the original home/away order. It runs as part of `test:e2e:public`.
+
 Axe excludes only Vite's injected `#__vue-devtools-container__`, which does not exist in the production build. No product components are excluded. Automated accessibility checks cover a subset of accessibility requirements and do not replace a screen reader review.

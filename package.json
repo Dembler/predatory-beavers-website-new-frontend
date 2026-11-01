@@ -12,7 +12,7 @@
     "build-only": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:e2e:public": "playwright test public.spec.ts matches.spec.ts navigation.spec.ts match-dates.spec.ts",
+    "test:e2e:public": "playwright test public.spec.ts matches.spec.ts navigation.spec.ts match-dates.spec.ts match-outcomes.spec.ts",
     "test:e2e:admin": "playwright test admin.spec.ts",
     "test:e2e:report": "playwright show-report .data/playwright-report",
     "type-check": "vue-tsc --build",

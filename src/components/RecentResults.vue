@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import MatchOutcome from '@/components/MatchOutcome.vue'
 import TeamEmblem from '@/components/TeamEmblem.vue'
 import type { Match } from '@/shared/types'
 
@@ -23,7 +24,7 @@ const rows = computed(() =>
         : match.club_side === 'away'
           ? match.away_score! - match.home_score!
           : null
-    const outcome =
+    const outcome: 'win' | 'loss' | 'draw' | null =
       difference === null ? null : difference > 0 ? 'win' : difference < 0 ? 'loss' : 'draw'
     const date = new Date(match.starts_at)
     return {
@@ -31,7 +32,6 @@ const rows = computed(() =>
       scored,
       difference,
       outcome,
-      outcomeLabel: outcome === 'win' ? 'Победа' : outcome === 'loss' ? 'Поражение' : 'Ничья',
       date: Number.isNaN(date.getTime()) ? 'Дата уточняется' : dateFormatter.format(date),
       teams: [
         {
@@ -114,7 +114,6 @@ const record = computed(() => {
           >
             <span class="result-row__name">
               <TeamEmblem
-                v-if="team.logo || team.remoteUrl || team.club"
                 class="result-row__emblem"
                 :name="team.name"
                 :logo="team.logo"
@@ -129,21 +128,20 @@ const record = computed(() => {
           <span v-if="!row.scored" class="result-row__unconfirmed">Счёт уточняется</span>
         </div>
 
-        <div class="result-row__outcome">
-          <span
-            v-if="row.outcome"
-            class="result-row__badge"
-            :class="`result-row__badge--${row.outcome}`"
-          >
-            {{ row.outcomeLabel }}
-          </span>
-          <span v-if="row.difference !== null" class="result-row__difference">
-            {{ row.difference > 0 ? '+' : row.difference < 0 ? '−' : ''
-            }}{{ Math.abs(row.difference) }} очк.
-          </span>
+        <div v-if="row.outcome" class="result-row__outcome">
+          <MatchOutcome :outcome="row.outcome" :difference="row.difference" tone="dark" />
         </div>
 
-        <div class="result-row__context">
+        <div
+          v-if="
+            row.match.notes ||
+            !shared.competition ||
+            shared.category === 'Команды клуба' ||
+            !shared.season ||
+            row.match.venue
+          "
+          class="result-row__context"
+        >
           <p v-if="row.match.notes" class="result-row__stage">{{ row.match.notes }}</p>
           <p class="result-row__meta">
             <span v-if="!shared.competition">{{ row.match.competition.name }}</span>
@@ -160,121 +158,276 @@ const record = computed(() => {
 </template>
 
 <style scoped>
-@media (max-width: 600px) {
-  .recent-results {
-    min-width: 0;
+.recent-results {
+  min-width: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.recent-results__header {
+  align-items: flex-start;
+  gap: 20px;
+  padding: 0 0 20px;
+  border: 0;
+  background: transparent;
+}
+
+.recent-results__context {
+  min-width: 0;
+  gap: 6px 16px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.recent-results__context strong {
+  font-size: 0.95rem;
+}
+
+.recent-results__record {
+  min-width: 0;
+  max-width: 40%;
+  flex-shrink: 1;
+  gap: 5px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.recent-results__record > span {
+  font-size: 0.8rem;
+}
+
+.recent-results__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.result-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 22px 24px;
+  border: 1px solid #ffffff26;
+  border-radius: 14px;
+  background: #031f39f5;
+  box-shadow: 0 8px 24px #00101f1f;
+}
+
+.result-row + .result-row {
+  border-top: 1px solid #ffffff26;
+}
+
+.result-row__date {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  align-self: start;
+  padding-top: 3px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.result-row__fixture {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  gap: 14px;
+}
+
+.result-row__team {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.result-row__name {
+  gap: 12px;
+  padding-left: 0;
+}
+
+.result-row__name > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.result-row__emblem {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+
+.result-row__emblem :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.result-row__emblem :deep(span) {
+  font-size: 0.75rem;
+}
+
+.result-row__score {
+  min-width: 2.2ch;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.result-row__unconfirmed {
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.result-row__outcome {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  max-width: 100%;
+  justify-self: end;
+}
+
+.result-row__context {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  padding: 14px 0 0;
+  border-top: 1px solid #ffffff18;
+}
+
+.result-row__context > p {
+  display: block;
+  margin-right: 0;
+}
+
+.result-row__stage {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.result-row__context .result-row__meta {
+  display: flex;
+  gap: 5px 16px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.result-row__context .result-row__meta:empty {
+  display: none;
+}
+
+@media (max-width: 1200px) {
+  .recent-results__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .recent-results__list {
+    grid-template-columns: minmax(0, 1fr);
   }
 
+  .result-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px 20px;
+  }
+
+  .result-row__outcome {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .result-row__fixture {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .result-row__context {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 600px) {
   .recent-results__header {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+    padding-bottom: 18px;
   }
 
   .recent-results__context {
     display: flex;
-    min-width: 0;
     flex-wrap: wrap;
-    gap: 4px 10px;
-    overflow-wrap: anywhere;
-    font-size: 0.73rem;
+    gap: 5px 12px;
+    font-size: 0.85rem;
   }
 
   .recent-results__context strong {
     flex-basis: 100%;
-    font-size: 0.8rem;
+    font-size: 0.95rem;
   }
 
   .recent-results__record {
     display: flex;
-    min-width: 0;
     max-width: none;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px 10px;
+    gap: 6px 12px;
     text-align: left;
-    font-size: 0.73rem;
-  }
-
-  .recent-results__record > span {
-    font-size: 0.7rem;
+    font-size: 0.88rem;
   }
 
   .result-row {
-    gap: 12px 10px;
-    padding: 14px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .result-row__date,
+  .result-row__fixture,
+  .result-row__outcome,
+  .result-row__context {
+    grid-column: 1;
+    grid-row: auto;
   }
 
   .result-row__date {
-    min-width: 0;
-    font-size: 0.72rem;
-  }
-
-  .result-row__outcome {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 5px 7px;
-    max-width: 156px;
-  }
-
-  .result-row__badge,
-  .result-row__difference {
-    font-size: 0.68rem;
+    padding-top: 0;
+    font-size: 0.85rem;
   }
 
   .result-row__team {
-    gap: 12px;
-    font-size: 0.83rem;
-    line-height: 1.5;
+    gap: 14px;
+    font-size: 1rem;
+    line-height: 1.45;
   }
 
-  .result-row__emblem,
-  .result-row__name :deep(img) {
-    width: 24px;
-    height: 24px;
-  }
-
-  .result-row__name {
-    gap: 9px;
-    padding-left: 33px;
-  }
-
-  .result-row__name:has(.result-row__emblem) {
-    padding-left: 0;
+  .result-row__emblem {
+    width: 36px;
+    height: 36px;
   }
 
   .result-row__score {
-    font-size: 1.4rem;
+    font-size: 1.9rem;
+  }
+
+  .result-row__outcome {
+    display: block;
+    justify-self: start;
   }
 
   .result-row__context {
-    padding-left: 0;
-    border-top: 1px solid #ffffff12;
-    padding-top: 10px;
-  }
-
-  .result-row__context:has(.result-row__meta:empty):not(:has(.result-row__stage)) {
-    display: none;
-  }
-
-  .result-row__context > p {
-    display: block;
-    margin-right: 0;
+    padding-top: 14px;
   }
 
   .result-row__stage {
-    font-size: 0.75rem;
-    line-height: 1.5;
-  }
-
-  .result-row__context .result-row__meta {
-    display: flex;
-    margin-top: 5px;
-    font-size: 0.7rem;
-  }
-
-  .result-row__context .result-row__meta:empty {
-    display: none;
+    font-size: 0.88rem;
   }
 }
 </style>

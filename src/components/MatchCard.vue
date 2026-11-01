@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import TeamEmblem from '@/components/TeamEmblem.vue'
+import MatchOutcome from '@/components/MatchOutcome.vue'
 import type { Match } from '@/shared/types'
 
 type KnownStatus = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled'
 type DisplayStatus = KnownStatus | 'unknown'
-type MatchOutcome = 'win' | 'loss' | 'draw'
+type Outcome = 'win' | 'loss' | 'draw'
 
 const KNOWN_STATUSES: readonly KnownStatus[] = [
   'scheduled',
@@ -48,7 +49,7 @@ const hasScore = computed(
     props.match.away_score !== null,
 )
 
-const outcome = computed<MatchOutcome | null>(() => {
+const difference = computed(() => {
   if (status.value !== 'finished' || !hasScore.value) return null
   if (props.match.club_side !== 'home' && props.match.club_side !== 'away') return null
 
@@ -57,18 +58,20 @@ const outcome = computed<MatchOutcome | null>(() => {
   const opponentScore =
     props.match.club_side === 'home' ? props.match.away_score! : props.match.home_score!
 
-  if (clubScore === opponentScore) return 'draw'
-  return clubScore > opponentScore ? 'win' : 'loss'
+  return clubScore - opponentScore
 })
-
-const outcomeLabel = computed(() => {
-  if (outcome.value === 'win') return 'Победа'
-  if (outcome.value === 'loss') return 'Поражение'
-  if (outcome.value === 'draw') return 'Ничья'
-  return ''
-})
+const outcome = computed<Outcome | null>(() =>
+  difference.value === null
+    ? null
+    : difference.value > 0
+      ? 'win'
+      : difference.value < 0
+        ? 'loss'
+        : 'draw',
+)
 
 const centerNote = computed(() => {
+  if (status.value === 'live') return 'Счёт не указан'
   if (status.value === 'postponed') return 'Дата уточняется'
   if (status.value === 'cancelled') return 'Матч отменён'
   if (status.value === 'finished') return 'Счёт уточняется'
@@ -155,13 +158,14 @@ const fullDateLabel = computed(() =>
       <p class="match-card__tournament" :title="match.competition.name">
         {{ match.competition.name }}
       </p>
-      <span class="match-card__status" :class="`match-card__status--${status}`">
+      <MatchOutcome v-if="outcome" :outcome="outcome" :difference="difference" />
+      <span v-else class="match-card__status" :class="`match-card__status--${status}`">
         <i v-if="status === 'live'" class="match-card__live-dot" aria-hidden="true"></i>
         {{ statusLabel }}
       </span>
     </header>
 
-    <div class="match-card__main">
+    <div class="match-card__main" :class="{ 'match-card__main--scored': hasScore }">
       <div class="match-card__team">
         <TeamEmblem
           class="match-card__logo"
@@ -173,6 +177,12 @@ const fullDateLabel = computed(() =>
           :eager="featured"
         />
         <strong :title="match.home_team_name">{{ match.home_team_name }}</strong>
+        <span
+          v-if="hasScore"
+          class="match-card__team-score"
+          :aria-live="status === 'live' ? 'polite' : undefined"
+          >{{ match.home_score }}</span
+        >
       </div>
 
       <div class="match-card__center">
@@ -185,15 +195,8 @@ const fullDateLabel = computed(() =>
             <span>{{ match.home_score }}</span
             ><i>:</i><span>{{ match.away_score }}</span>
           </p>
-          <span
-            v-if="outcome"
-            class="match-card__outcome"
-            :class="`match-card__outcome--${outcome}`"
-          >
-            {{ outcomeLabel }}
-          </span>
-          <span v-else-if="status === 'live'" class="match-card__live-label">Идёт</span>
-          <span v-else class="match-card__outcome">Завершён</span>
+          <span v-if="status === 'live'" class="match-card__live-label">Идёт</span>
+          <span v-else class="match-card__score-caption">Итоговый счёт</span>
         </template>
         <template v-else-if="status === 'live'">
           <span class="match-card__no-score">Счёт не указан</span>
@@ -219,6 +222,12 @@ const fullDateLabel = computed(() =>
           :eager="featured"
         />
         <strong :title="match.away_team_name">{{ match.away_team_name }}</strong>
+        <span
+          v-if="hasScore"
+          class="match-card__team-score"
+          :aria-live="status === 'live' ? 'polite' : undefined"
+          >{{ match.away_score }}</span
+        >
       </div>
     </div>
 
@@ -255,16 +264,21 @@ const fullDateLabel = computed(() =>
       },
     ]"
   >
-    <div class="match-card__row-date">
-      <time :datetime="match.starts_at" :title="fullDateLabel">
-        <b>{{ dayLabel }}</b>
-        <span>{{ monthShortLabel }}</span>
-        <small>
-          {{ weekdayLabel }}<template v-if="status !== 'scheduled'"> · {{ timeLabel }}</template>
-        </small>
-        <span class="match-card__row-year">{{ yearLabel }}</span>
-      </time>
-    </div>
+    <header class="match-card__row-heading">
+      <div class="match-card__row-date">
+        <time :datetime="match.starts_at" :title="fullDateLabel">
+          <b>{{ dayLabel }}</b>
+          <span>{{ monthShortLabel }}</span>
+          <span class="match-card__row-year">{{ yearLabel }}</span>
+          <small>{{ weekdayLabel }} · {{ timeLabel }}</small>
+        </time>
+      </div>
+      <MatchOutcome v-if="outcome" :outcome="outcome" :difference="difference" />
+      <span v-else class="match-card__status" :class="`match-card__status--${status}`">
+        <i v-if="status === 'live'" class="match-card__live-dot" aria-hidden="true"></i>
+        {{ statusLabel }}
+      </span>
+    </header>
 
     <div class="match-card__row-body">
       <div class="match-card__row-teams">
@@ -285,7 +299,26 @@ const fullDateLabel = computed(() =>
             >{{ match.home_score }}</span
           >
         </div>
-        <span class="match-card__row-sep" aria-hidden="true">—</span>
+        <div class="match-card__row-result">
+          <template v-if="hasScore">
+            <p
+              class="match-card__score"
+              :aria-live="status === 'live' ? 'polite' : undefined"
+              :aria-atomic="status === 'live' ? 'true' : undefined"
+            >
+              <span>{{ match.home_score }}</span
+              ><i>:</i><span>{{ match.away_score }}</span>
+            </p>
+            <span class="match-card__score-caption">
+              {{ status === 'live' ? 'Текущий счёт' : 'Итоговый счёт' }}
+            </span>
+          </template>
+          <template v-else-if="status === 'scheduled' || status === 'unknown'">
+            <time class="match-card__time" :datetime="match.starts_at">{{ timeLabel }}</time>
+            <span class="match-card__score-caption">Начало · МСК</span>
+          </template>
+          <span v-else class="match-card__no-score">{{ centerNote }}</span>
+        </div>
         <div class="match-card__row-team">
           <TeamEmblem
             class="match-card__logo"
@@ -306,39 +339,9 @@ const fullDateLabel = computed(() =>
       </div>
       <p class="match-card__row-meta">
         <span>{{ match.competition.name }}</span>
-        <span v-if="match.venue">· {{ match.venue.name }}</span>
-        <span>· {{ teamCategoryLabel }}</span>
+        <span v-if="match.venue">{{ match.venue.name }}</span>
+        <span>{{ teamCategoryLabel }}</span>
       </p>
-    </div>
-
-    <div class="match-card__row-result">
-      <template v-if="hasScore">
-        <p
-          class="match-card__score"
-          :aria-live="status === 'live' ? 'polite' : undefined"
-          :aria-atomic="status === 'live' ? 'true' : undefined"
-        >
-          <span>{{ match.home_score }}</span
-          ><i>:</i><span>{{ match.away_score }}</span>
-        </p>
-        <span v-if="outcome" class="match-card__outcome" :class="`match-card__outcome--${outcome}`">
-          {{ outcomeLabel }}
-        </span>
-        <span v-else class="match-card__status" :class="`match-card__status--${status}`">
-          {{ statusLabel }}
-        </span>
-      </template>
-      <template v-else-if="status === 'scheduled'">
-        <time class="match-card__time" :datetime="match.starts_at">{{ timeLabel }}</time>
-        <span class="match-card__status" :class="`match-card__status--${status}`">
-          {{ statusLabel }}
-        </span>
-      </template>
-      <template v-else>
-        <span class="match-card__status" :class="`match-card__status--${status}`">
-          {{ statusLabel }}
-        </span>
-      </template>
     </div>
 
     <details v-if="match.notes" class="match-card__details match-card__details--row">
@@ -350,14 +353,62 @@ const fullDateLabel = computed(() =>
 
 <style scoped>
 .match-card__row-team-score,
-.match-card__row-year {
+.match-card__team-score {
   display: none;
 }
-
+.match-card__score-caption {
+  display: block;
+  margin-top: 8px;
+  color: #607287;
+  font:
+    500 0.7rem/1.4 'Roboto',
+    sans-serif;
+}
 .match-card__details p {
   overflow-wrap: anywhere;
 }
-
+.match-card__head {
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px 24px 0;
+}
+.match-card__tournament {
+  flex: 1 1 180px;
+  max-width: none;
+  overflow: visible;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.match-card:not(.match-card--row) .match-card__main {
+  min-height: 180px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, auto) minmax(0, 1fr);
+  gap: 18px;
+  padding: 26px 24px;
+}
+.match-card:not(.match-card--row) .match-card__logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+}
+.match-card:not(.match-card--row) .match-card__team {
+  gap: 12px;
+}
+.match-card:not(.match-card--row) .match-card__team strong {
+  display: block;
+  min-height: 0;
+  overflow: visible;
+  font-size: 1.2rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
+}
+.match-card:not(.match-card--row) .match-card__score {
+  font-size: clamp(2.6rem, 4vw, 3.4rem);
+  gap: 8px;
+}
 .match-card__map-link {
   display: inline-flex;
   min-height: 44px;
@@ -370,219 +421,305 @@ const fullDateLabel = computed(() =>
   font-size: 0.75rem;
   font-weight: 600;
 }
-
+.match-card__meta-item {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
 .match-card__map-link:hover {
   background: #edf2f7;
 }
-
 .match-card__map-link:focus-visible {
   outline: 3px solid #4d82b2;
   outline-offset: 3px;
 }
-
+.match-card--row {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 16px #042a4e0a;
+}
+.match-card__row-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e3eaf1;
+  background: #f5f8fb;
+}
+.match-card__row-date {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.match-card__row-date time {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+}
+.match-card__row-date b {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.match-card__row-date span {
+  font-size: 0.8rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.match-card__row-date .match-card__row-year {
+  display: inline;
+  font-weight: 400;
+}
+.match-card__row-date small {
+  margin-left: 8px;
+  font-size: 0.77rem;
+  white-space: normal;
+}
+.match-card__row-body {
+  min-width: 0;
+  padding: 24px;
+}
+.match-card__row-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+.match-card__row-team {
+  min-width: 0;
+  gap: 16px;
+}
+.match-card__row-team:first-child {
+  flex-direction: row-reverse;
+  text-align: right;
+}
 .match-card__row-team strong {
+  flex: 1;
   min-width: 0;
   overflow: visible;
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+  line-height: 1.4;
   text-overflow: clip;
   white-space: normal;
   overflow-wrap: anywhere;
 }
-
 .match-card--row .match-card__logo {
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
+  border-radius: 12px;
 }
-
+.match-card--row .match-card__logo :deep(img) {
+  padding: 5px;
+}
+.match-card--row .match-card__logo :deep(span) {
+  font-size: 0.85rem;
+}
+.match-card__row-result {
+  min-width: 0;
+  align-items: center;
+  gap: 0;
+  text-align: center;
+}
+.match-card__row-result .match-card__score {
+  gap: 7px;
+  font-size: 2.7rem;
+}
+.match-card__row-result .match-card__time {
+  font-size: 2.2rem;
+}
 .match-card__row-meta {
+  justify-content: center;
+  gap: 8px 16px;
+  margin: 20px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
-
-.match-card:not(.match-card--row) .match-card__team strong {
-  display: block;
-  overflow: visible;
-  overflow-wrap: anywhere;
-  -webkit-line-clamp: unset;
+.match-card__row-meta > span + span {
+  padding-left: 16px;
+  border-left: 1px solid #d7e1eb;
 }
-
-@media (min-width: 701px) {
+.match-card__details--row {
+  margin: 0 24px;
+  padding: 0;
+  border-top: 1px solid #e3eaf1;
+}
+.match-card__details summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  font-size: 0.8rem;
+}
+.match-card__details summary::-webkit-details-marker {
+  display: none;
+}
+.match-card__details summary::after {
+  content: '+';
+  font-size: 1.3rem;
+  font-weight: 400;
+}
+.match-card__details[open] summary::after {
+  content: '\2212';
+}
+.match-card__details p {
+  margin: 0 0 20px;
+}
+@media (min-width: 701px) and (max-width: 1000px) {
   .match-card__row-teams {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr);
+    gap: 16px;
+  }
+  .match-card__row-team {
+    gap: 12px;
+  }
+  .match-card--row .match-card__logo {
+    width: 48px;
+    height: 48px;
   }
 }
-
 @media (max-width: 700px) {
-  .match-card--row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'date result'
-      'body body'
-      'details details';
-    align-items: start;
+  .match-card__head,
+  .match-card--featured .match-card__head {
+    padding: 18px 18px 0;
+  }
+  .match-card:not(.match-card--row) .match-card__main {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 8px 18px 18px;
+  }
+  .match-card:not(.match-card--row) .match-card__team {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     gap: 12px;
+    padding: 14px 0;
+    text-align: left;
+  }
+  .match-card:not(.match-card--row) .match-card__team:last-child {
+    border-top: 1px solid #e3eaf1;
+  }
+  .match-card:not(.match-card--row) .match-card__logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  .match-card:not(.match-card--row) .match-card__team strong {
+    font:
+      600 0.95rem/1.45 'Roboto',
+      sans-serif;
+    text-transform: none;
+  }
+  .match-card:not(.match-card--row) .match-card__score {
+    gap: 4px;
+    font-size: 2.35rem;
+  }
+  .match-card:not(.match-card--row) .match-card__center {
     min-width: 0;
-    padding: 14px;
+    order: 1;
+    padding-top: 14px;
+    border-top: 1px solid #e3eaf1;
   }
-
-  .match-card__row-date {
-    grid-area: date;
-    min-width: 0;
-    padding: 0;
-    border: 0;
+  .match-card:not(.match-card--row) .match-card__main--scored .match-card__center {
+    display: none;
   }
-
-  .match-card__row-date time {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 3px 5px;
-    line-height: 1.4;
+  .match-card__score-caption {
+    font-size: 0.66rem;
   }
-
+  .match-card__row-heading {
+    display: flex;
+    padding: 14px 18px;
+    gap: 12px;
+  }
   .match-card__row-date b {
     font:
-      700 0.8rem/1.4 'Roboto',
+      600 0.9rem/1.4 'Roboto',
       sans-serif;
   }
-
   .match-card__row-date span {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
   }
-
   .match-card__row-date small {
     flex-basis: 100%;
-    order: 1;
-    font-size: 0.68rem;
+    margin: 0;
+    font-size: 0.72rem;
   }
-
-  .match-card__row-date .match-card__row-year {
-    display: inline;
-    order: 0;
-    color: #526477;
-    font-size: 0.75rem;
-  }
-
   .match-card__row-body {
-    grid-area: body;
+    padding: 6px 18px 18px;
   }
-
   .match-card__row-teams {
-    gap: 9px;
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0;
   }
-
-  .match-card__row-team {
-    gap: 9px;
+  .match-card__row-team,
+  .match-card__row-team:first-child {
+    flex-direction: row;
+    gap: 12px;
+    padding: 14px 0;
+    text-align: left;
   }
-
+  .match-card__row-team:last-child {
+    border-top: 1px solid #e9eef4;
+  }
   .match-card__row-team strong {
-    flex: 1;
-    min-width: 0;
-    overflow: visible;
     font:
-      600 0.83rem/1.4 'Roboto',
+      600 0.95rem/1.45 'Roboto',
       sans-serif;
-    text-overflow: clip;
-    white-space: normal;
     text-transform: none;
   }
-
-  .match-card__row-team-score {
-    display: inline;
-    flex-shrink: 0;
+  .match-card--row .match-card__logo {
+    width: 44px;
+    height: 44px;
+  }
+  .match-card__row-team-score,
+  .match-card__team-score {
+    display: block;
     min-width: 2ch;
+    flex-shrink: 0;
     color: var(--navy);
     font:
-      600 1.35rem/1 'Oswald',
+      700 1.9rem/1.2 'Oswald',
       sans-serif;
     font-variant-numeric: tabular-nums;
     text-align: right;
   }
-
   .match-card__row-result {
-    grid-area: result;
-    max-width: 112px;
-    gap: 6px;
-    padding-top: 2px;
-  }
-
-  .match-card__row-result .match-card__score {
     display: none;
   }
-
-  .match-card__row-result .match-card__outcome {
-    margin: 0;
-    padding: 5px 8px;
-    border-radius: 6px;
-    background: #edf2f7;
-    font-size: 0.62rem;
-    letter-spacing: 0.02em;
+  .match-card__row-result:has(.match-card__no-score) {
+    display: block;
+    order: 1;
+    padding-top: 12px;
   }
-
-  .match-card__row-result .match-card__outcome--loss {
-    background: #fff0ef;
-  }
-
   .match-card__row-meta {
-    gap: 4px 8px;
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px solid #e5ebf1;
-    font-size: 0.75rem;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
+    justify-content: flex-start;
+    gap: 5px 12px;
+    margin-top: 8px;
+    padding-top: 14px;
+    border-top: 1px solid #e3eaf1;
+    font-size: 0.77rem;
   }
-
+  .match-card__row-meta > span + span {
+    padding-left: 0;
+    border-left: 0;
+  }
   .match-card__details--row {
-    grid-area: details;
-    margin: 0;
-    padding-top: 0;
-    border: 0;
-  }
-
-  .match-card__details summary {
-    display: flex;
-    min-height: 44px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    list-style: none;
-  }
-
-  .match-card__details summary::after {
-    content: '+';
-    font-size: 1.2rem;
-    font-weight: 400;
-  }
-
-  .match-card__details[open] summary::after {
-    content: '−';
-  }
-
-  .match-card:not(.match-card--row) {
-    min-width: 0;
-  }
-
-  .match-card:not(.match-card--row) .match-card__main {
-    grid-template-columns: minmax(0, 1fr) minmax(70px, auto) minmax(0, 1fr);
-    gap: 6px;
-    padding-inline: 12px;
-  }
-
-  .match-card:not(.match-card--row) .match-card__center {
-    min-width: 0;
-  }
-
-  .match-card:not(.match-card--row) .match-card__team strong {
-    font-size: 0.78rem;
-    line-height: 1.4;
-  }
-
-  .match-card__head,
-  .match-card__meta-item {
-    min-width: 0;
-    overflow-wrap: anywhere;
+    margin: 0 18px;
   }
 }
 </style>
