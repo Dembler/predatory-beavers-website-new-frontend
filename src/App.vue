@@ -10,7 +10,17 @@ const headerCompact = ref(false)
 const route = useRoute()
 const teamsOpen = ref(false)
 const mobileMenu = ref<HTMLDialogElement | null>(null)
+const siteHeader = ref<HTMLElement | null>(null)
 let mobileViewport: MediaQueryList | undefined
+let headerObserver: ResizeObserver | undefined
+
+function measureHeader() {
+  if (siteHeader.value)
+    document.documentElement.style.setProperty(
+      '--header-edge',
+      `${Math.ceil(siteHeader.value.getBoundingClientRect().bottom)}px`,
+    )
+}
 
 watch(menuOpen, (open) => {
   if (open && mobileViewport?.matches) mobileMenu.value?.showModal()
@@ -68,6 +78,9 @@ function keepMenuFocus(event: KeyboardEvent) {
 }
 
 onMounted(() => {
+  headerObserver = new ResizeObserver(measureHeader)
+  if (siteHeader.value) headerObserver.observe(siteHeader.value)
+  measureHeader()
   mobileViewport = window.matchMedia('(max-width: 900px)')
   mobileViewport.addEventListener('change', updateViewport)
   updateHeader()
@@ -76,6 +89,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  headerObserver?.disconnect()
+  document.documentElement.style.removeProperty('--header-edge')
   mobileViewport?.removeEventListener('change', updateViewport)
   document.documentElement.classList.remove('navigation-open')
   window.removeEventListener('scroll', updateHeader)
@@ -93,8 +108,8 @@ const links = [
 const quickLinks = [
   { label: 'Матчи', caption: 'Расписание и результаты', to: '/matches' },
   { label: 'Таблица', caption: 'Положение команд', to: '/standings' },
-  { label: 'Мужская команда', caption: 'Состав и игроки', to: '/teams/men' },
-  { label: 'Женская команда', caption: 'Состав и игроки', to: '/teams/women' },
+  { label: 'Мужская команда', to: '/teams/men' },
+  { label: 'Команда девушек', to: '/teams/women' },
 ]
 const bottomLinks = computed(() => [
   { label: 'Главная', to: '/', icon: 'M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z' },
@@ -128,7 +143,7 @@ function bottomActive(to: string) {
       aria-hidden="true"
     />
 
-    <header class="site-header" :class="{ 'site-header--compact': headerCompact }">
+    <header ref="siteHeader" class="site-header" :class="{ 'site-header--compact': headerCompact }">
       <div class="nav-shell">
         <span class="nav-shell__glow" aria-hidden="true"></span>
         <RouterLink class="wordmark" to="/" aria-label="Хищные Бобры — главная">
@@ -175,7 +190,7 @@ function bottomActive(to: string) {
             </button>
             <div id="team-navigation" class="nav-dropdown__menu">
               <RouterLink to="/teams/men" @click="menuOpen = false"> Мужская команда </RouterLink>
-              <RouterLink to="/teams/women" @click="menuOpen = false"> Женская команда </RouterLink>
+              <RouterLink to="/teams/women" @click="menuOpen = false"> Команда девушек </RouterLink>
             </div>
           </div>
           <RouterLink
@@ -207,7 +222,6 @@ function bottomActive(to: string) {
     >
       <div class="mobile-menu__heading">
         <div>
-          <p>Хищные Бобры · БК ВГУ</p>
           <h2 id="mobile-menu-title">Всё о клубе</h2>
         </div>
         <button
@@ -229,7 +243,7 @@ function bottomActive(to: string) {
             :to="link.to"
             @click="menuOpen = false"
             ><strong>{{ link.label }}</strong
-            ><span>{{ link.caption }}</span
+            ><span v-if="link.caption">{{ link.caption }}</span
             ><b aria-hidden="true">↗</b></RouterLink
           >
         </div>

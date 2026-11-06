@@ -5,8 +5,8 @@ import { assertNoHorizontalOverflow, openPage } from './helpers'
 const routes = [
   ['/', /Хищные/],
   ['/teams/men', /Мужская команда/],
-  ['/teams/women', /Женская команда/],
-  ['/matches', /Расписание/],
+  ['/teams/women', /Команда девушек/],
+  ['/matches', /Матчи/],
   ['/standings', /таблица/i],
   ['/club', /О клубе/],
   ['/rules', /правила|Пойми игру/i],
@@ -32,6 +32,17 @@ for (const [path, title] of routes) {
       heading && header && heading.y >= header.y + header.height,
       'The page heading is covered by the fixed header',
     ).toBe(true)
+    const firstContent = await page
+      .locator('main .page-hero .eyebrow, main .page-hero h1, main .home-hero h1')
+      .first()
+      .boundingBox()
+    if (firstContent && header) {
+      const clearance = firstContent.y - header.y - header.height
+      expect(
+        clearance,
+        'Content needs deliberate space below the fixed menu',
+      ).toBeGreaterThanOrEqual(testInfo.project.name === 'mobile' ? 35 : 63)
+    }
     await page.screenshot({
       path: testInfo.outputPath(`${path.replace(/\W/g, '_') || 'home'}.png`),
       fullPage: true,
@@ -60,11 +71,22 @@ test('failed API request displays retry and recovers without reloading the page'
   page,
 }) => {
   let fail = true
-  await page.route('**/api/v1/players?**', async (route) => {
+  await page.route('**/api/v1/asb-roster/*', async (route) => {
     if (fail) await route.abort('failed')
     else
       await route.fulfill({
-        json: { items: [], total: 0, page: 1, page_size: 100, total_pages: 0 },
+        json: {
+          data: {
+            team: 'men',
+            current_season: '2026-2027',
+            season: null,
+            is_current_season: false,
+            status: 'not_published',
+            notice: 'Заявка нового сезона ещё не опубликована на АСБ.',
+            source_url: 'https://asb.infobasket.su/Widget/TeamRoster/7433',
+            players: [],
+          },
+        },
       })
   })
   await openPage(page, '/teams/men')
@@ -72,19 +94,12 @@ test('failed API request displays retry and recovers without reloading the page'
   fail = false
   await page.getByRole('button', { name: /Повторить/ }).click()
   await expect(page.getByRole('alert')).toHaveCount(0)
-  await expect(page.getByRole('status')).toContainText(/пока нет|скоро появится/)
+  await expect(page.getByRole('status')).toContainText(/Заявка нового сезона/)
 })
 
 test('switching teams while the first response is delayed cannot show the previous team roster', async ({
   page,
 }) => {
-  const team = (category: string) => ({
-    id: `team-${category}`,
-    category,
-    name: category,
-    slug: category,
-    logo: null,
-  })
   let menStarted!: () => void
   let releaseMen!: () => void
   const firstRequest = new Promise<void>((resolve) => {
@@ -93,29 +108,35 @@ test('switching teams while the first response is delayed cannot show the previo
   const releaseFirst = new Promise<void>((resolve) => {
     releaseMen = resolve
   })
-  await page.route('**/api/v1/players?**', async (route) => {
-    const category = new URL(route.request().url()).searchParams.get('category') || 'men'
+  await page.route('**/api/v1/asb-roster/*', async (route) => {
+    const category = new URL(route.request().url()).pathname.split('/').at(-1) || 'men'
     if (category === 'men') {
       menStarted()
       await releaseFirst
     }
     await route.fulfill({
       json: {
-        items: [
-          {
-            id: `player-${category}`,
-            full_name:
-              category === 'men' ? 'Игрок мужской команды E2E' : 'Игрок женской команды E2E',
-            team_id: `team-${category}`,
-            team: team(category),
-            photo: null,
-            active: true,
-          },
-        ],
-        page: 1,
-        page_size: 100,
-        total: 1,
-        total_pages: 1,
+        data: {
+          team: category,
+          current_season: '2026-2027',
+          season: '2026-2027',
+          is_current_season: true,
+          status: 'published',
+          source_url: 'https://asbasket.ru/',
+          players: [
+            {
+              id: `player-${category}`,
+              full_name:
+                category === 'men' ? 'Игрок мужской команды E2E' : 'Игрок команды девушек E2E',
+              photo_url: null,
+              games_played: 1,
+              points_per_game: 10,
+              assists_per_game: 2,
+              rebounds_per_game: 3,
+              minutes_per_game: 25,
+            },
+          ],
+        },
       },
     })
   })
@@ -123,13 +144,13 @@ test('switching teams while the first response is delayed cannot show the previo
   await firstRequest
   await page
     .locator('.team-switch')
-    .getByRole('link', { name: 'Женская команда', exact: true })
+    .getByRole('link', { name: 'Команда девушек', exact: true })
     .click()
   await expect(
-    page.getByRole('heading', { name: 'Игрок женской команды E2E', exact: true }),
+    page.getByRole('heading', { name: 'Игрок команды девушек E2E', exact: true }),
   ).toBeVisible()
   const staleResponse = page.waitForResponse((response) =>
-    response.url().includes('/api/v1/players?category=men'),
+    response.url().includes('/api/v1/asb-roster/men'),
   )
   releaseMen()
   await (await staleResponse).finished()
@@ -142,23 +163,14 @@ test('switching teams while the first response is delayed cannot show the previo
   await expect(
     page.getByRole('heading', { name: 'Игрок мужской команды E2E', exact: true }),
   ).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Женская команда', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Команда девушек', exact: true })).toBeVisible()
 })
 
-test('public pages have no serious or critical accessibility violations', async ({
-  page,
-}, testInfo) => {
-  test.setTimeout(90_000)
-  for (const path of [
-    '/',
-    '/teams/men',
-    '/matches',
-    '/standings',
-    '/club',
-    '/rules',
-    '/contacts',
-    '/admin',
-  ]) {
+for (const path of routes.map(([path]) => path)) {
+  test(`${path} has no serious or critical accessibility violations`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(45_000)
     await openPage(page, path)
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
     // Vite injects a third-party development toolbar that is absent from the production site.
@@ -183,8 +195,8 @@ test('public pages have no serious or critical accessibility violations', async 
         path,
       )
       .toEqual([])
-  }
-})
+  })
+}
 
 test('mobile navigation opens, follows a link and closes', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'Mobile navigation is tested with a touch viewport')
@@ -193,7 +205,7 @@ test('mobile navigation opens, follows a link and closes', async ({ page }, test
   await expect(page.getByRole('dialog', { name: 'Всё о клубе' })).toBeVisible()
   await page
     .getByRole('navigation', { name: 'Все разделы', exact: true })
-    .getByRole('link', { name: 'Правила', exact: true })
+    .getByRole('link', { name: /^Правила/ })
     .click()
   await expect(page).toHaveURL(/\/rules$/)
   await expect(page.getByRole('button', { name: 'Открыть меню', exact: true })).toHaveAttribute(
@@ -202,56 +214,77 @@ test('mobile navigation opens, follows a link and closes', async ({ page }, test
   )
 })
 
-test('desktop team navigation stays synchronized with click, Escape and keyboard focus', async ({
+test('hall selection updates the Yandex map and map gestures require explicit activation', async ({
   page,
 }, testInfo) => {
-  test.skip(
-    testInfo.project.name !== 'desktop',
-    'Desktop dropdown is replaced by the touch navigation',
+  await openPage(page, '/contacts')
+  const map = page.locator('.venue-map iframe')
+  await expect(map).toHaveAttribute('src', /https:\/\/yandex\.ru\/map-widget\/v1\//)
+  const initialSource = await map.getAttribute('src')
+  const activation = page.getByRole('button', { name: 'Управлять картой', exact: true })
+  await expect(activation).toHaveAttribute('aria-pressed', 'false')
+  await expect(map).toHaveCSS('pointer-events', 'none')
+  await activation.click()
+  await expect(
+    page.getByRole('button', { name: 'Выключить управление картой', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await expect(map).toHaveCSS('pointer-events', 'auto')
+  if (testInfo.project.name === 'mobile') {
+    await page.getByRole('combobox', { name: 'Выберите зал', exact: true }).click()
+    await page.getByRole('option').nth(1).click()
+  } else {
+    await page.locator('.venue-option').nth(1).click()
+    await expect(page.locator('.venue-option[aria-pressed="true"]')).toHaveCount(1)
+  }
+  await expect(map).not.toHaveAttribute('src', initialSource!)
+  await expect(page.getByRole('button', { name: 'Управлять картой', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
   )
-  await openPage(page, '/club')
-  const trigger = page.getByRole('button', { name: 'Команды', exact: true })
-  const menu = page.locator('#team-navigation')
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  await expect(menu).not.toBeVisible()
-  await trigger.click()
-  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
-  await expect(menu.getByRole('link', { name: 'Мужская команда', exact: true })).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  await expect(menu).not.toBeVisible()
-  await trigger.hover()
-  await expect(menu).not.toBeVisible()
-  await trigger.click()
-  await expect(menu).toBeVisible()
-  await trigger.click()
-  await expect(menu).not.toBeVisible()
-  await trigger.click()
-  await expect(menu).toBeVisible()
-  await expect(trigger).toBeFocused()
-  await page.keyboard.press('Tab')
-  await expect(menu.getByRole('link', { name: 'Мужская команда', exact: true })).toBeFocused()
-  await page.keyboard.press('Tab')
-  await expect(menu.getByRole('link', { name: 'Женская команда', exact: true })).toBeFocused()
-  await page.keyboard.press('Tab')
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  await expect(menu).not.toBeVisible()
+  await expect(map).toHaveCSS('pointer-events', 'none')
+  await expect(page.getByRole('link', { name: 'Проложить маршрут', exact: false })).toHaveAttribute(
+    'href',
+    /https:\/\/yandex\.ru\/maps\/\?rtext=/,
+  )
+  await assertNoHorizontalOverflow(page)
 })
 
-test('mobile shortcuts, menu focus and contact anchors work without an intro delay or horizontal scrolling', async ({
+test('club section links reveal history, honours and tournaments below the fixed navigation', async ({
+  page,
+}) => {
+  await openPage(page, '/club')
+  const navigation = page.getByRole('navigation', { name: 'Разделы страницы клуба', exact: true })
+  for (const [label, target] of [
+    ['История клуба', '#club-timeline'],
+    ['Достижения', '#club-honours-title'],
+    ['Турниры', '#club-tournaments'],
+  ]) {
+    await navigation.getByRole('link', { name: label, exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(`${target}$`))
+    await expect(page.locator(target!)).toBeInViewport()
+    const destination = await page.locator(target!).boundingBox()
+    const header = await page.locator('.site-header').boundingBox()
+    expect(destination!.y).toBeGreaterThanOrEqual(header!.height)
+  }
+})
+
+test('mobile menu, bottom navigation, focus and contact anchors work without an intro delay or horizontal scrolling', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'Touch navigation only')
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
   await expect(page.locator('.intro-reveal')).toHaveCount(0)
-  const shortcuts = page.getByRole('navigation', { name: 'Быстрый переход' })
+  await expect(page.getByRole('navigation', { name: 'Быстрый переход' })).toBeVisible()
+  const trigger = page.getByRole('button', { name: 'Открыть меню', exact: true })
+  const menu = page.getByRole('dialog', { name: 'Всё о клубе' })
   for (const [label, path] of [
     ['Матчи', '/matches'],
     ['Таблица', '/standings'],
-    ['Команды', '/teams/men'],
+    ['Мужская команда', '/teams/men'],
   ] as const) {
-    await shortcuts.getByRole('link', { name: label, exact: true }).click()
+    await trigger.click()
+    await menu.getByRole('link', { name: label }).click()
     await expect(page).toHaveURL(new RegExp(`${path}$`))
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
     await assertNoHorizontalOverflow(page)
@@ -268,21 +301,25 @@ test('mobile shortcuts, menu focus and contact anchors work without an intro del
           )
           .map((el) => el.className),
       )
-    expect(scrollers).toEqual([])
+    if (path === '/standings') {
+      expect(scrollers.length).toBeGreaterThan(0)
+      expect(scrollers.every((name) => /^(league-scroll|bracket-scroll)$/.test(name))).toBe(true)
+      await expect(page.locator('main .league-scroll, main .bracket-scroll').first()).toBeVisible()
+    } else {
+      expect(scrollers).toEqual([])
+    }
   }
-  await page.locator('main').getByRole('link', { name: 'Женская команда', exact: true }).click()
+  await page.locator('main').getByRole('link', { name: 'Команда девушек', exact: true }).click()
   await expect(page).toHaveURL(/\/teams\/women$/)
-  const trigger = page.getByRole('button', { name: 'Открыть меню', exact: true })
   await trigger.click()
-  const menu = page.getByRole('dialog', { name: 'Всё о клубе' })
   await expect(menu.getByRole('button', { name: 'Закрыть меню', exact: true })).toBeFocused()
   await page.keyboard.press('Shift+Tab')
-  await expect(menu.getByRole('link', { name: 'Управление сайтом', exact: false })).toBeFocused()
+  await expect(menu.getByRole('link', { name: /^Управление сайтом/ })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).not.toBeVisible()
   await expect(trigger).toBeFocused()
   await expect(page.locator('html')).not.toHaveClass(/navigation-open|intro-active/)
-  await shortcuts.getByRole('button', { name: 'Меню — все разделы', exact: true }).click()
+  await trigger.click()
   await menu.getByRole('link', { name: 'Контакты', exact: false }).click()
   await expect(page).toHaveURL(/\/contacts$/)
   await page
@@ -342,9 +379,11 @@ test('missing and malformed player IDs show a useful state with a working roster
     await page.goto(`/players/${id}`)
     const skip = page.getByRole('button', { name: 'Пропустить', exact: true })
     if (await skip.isVisible().catch(() => false)) await skip.click()
-    await expect(page.getByText('Игрок не найден.', { exact: false })).toBeVisible()
+    await expect(
+      page.getByText('Игрок не найден в опубликованной заявке текущего сезона.', { exact: false }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: /Повторить/ })).toHaveCount(0)
-    await page.getByRole('link', { name: /К составу/ }).click()
+    await page.getByRole('link', { name: 'К составу →', exact: true }).click()
     await expect(page).toHaveURL(/\/teams\/men$/)
   }
 })

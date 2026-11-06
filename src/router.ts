@@ -11,6 +11,11 @@ export const router = createRouter({
       meta: { title: 'Команда' },
     },
     {
+      path: '/players/:id([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
+      component: () => import('./pages/LocalPlayerPage.vue'),
+      meta: { title: 'Игрок' },
+    },
+    {
       path: '/players/:id',
       component: () => import('./pages/PlayerPage.vue'),
       meta: { title: 'Игрок' },
@@ -18,12 +23,24 @@ export const router = createRouter({
     {
       path: '/matches',
       component: () => import('./pages/MatchesPage.vue'),
-      meta: { title: 'Расписание' },
+      meta: { title: 'Матчи' },
     },
     {
       path: '/standings',
       component: () => import('./pages/StandingsPage.vue'),
       meta: { title: 'Таблица' },
+    },
+    {
+      path: '/results',
+      redirect: (to) => ({ path: '/club', query: to.query, hash: '#club-tournaments' }),
+    },
+    {
+      path: '/3x3',
+      redirect: (to) => ({
+        path: '/club',
+        query: { ...to.query, discipline: '3x3' },
+        hash: '#club-tournaments',
+      }),
     },
     {
       path: '/rules',
@@ -48,6 +65,11 @@ export const router = createRouter({
   ],
   scrollBehavior: (to, from, savedPosition) => {
     if (savedPosition) return savedPosition
+    if (to.hash) {
+      const headerHeight =
+        document.querySelector('.site-header')?.getBoundingClientRect().height ?? 0
+      return { el: to.hash, top: headerHeight + 24 }
+    }
     if (to.path === from.path && to.path !== '/admin') return false
     return { top: 0 }
   },

@@ -197,17 +197,19 @@ html:has(.admin-page dialog[open]) {
     background: #021d36a6;
   }
   .mobile-menu__heading {
+    position: sticky;
+    z-index: 2;
+    top: -22px;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 24px;
-  }
-  .mobile-menu__heading p {
-    margin: 0 0 8px;
-    color: #52677b;
-    font-size: 0.75rem;
-    line-height: 1.5;
+    padding: 22px 0 16px;
+    margin: -22px 0 8px;
+    background: #f6f8fb;
+    box-shadow:
+      -22px 0 #f6f8fb,
+      22px 0 #f6f8fb;
   }
   .mobile-menu__heading h2 {
     margin: 0;

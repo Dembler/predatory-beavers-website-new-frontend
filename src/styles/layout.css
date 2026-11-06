@@ -1,0 +1,186 @@
+/* One spacing scale for the public website and its mobile layout. */
+:root {
+  --header-edge: 86px;
+  --page-air: 64px;
+  --section-space: 64px;
+  --page-gutter: 40px;
+  --content-gap: 28px;
+}
+
+html {
+  scroll-padding-top: calc(var(--header-edge) + 24px);
+}
+
+.site-shell {
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+}
+
+.site-shell > main {
+  flex: 1 0 auto;
+}
+
+.site-footer {
+  padding-inline: 0;
+}
+
+.container {
+  width: min(1360px, calc(100% - var(--page-gutter) * 2));
+}
+
+main:not(:has(> .home-page)) {
+  padding-top: var(--header-edge);
+}
+
+.page-hero,
+.page-hero--compact {
+  padding: var(--page-air) 0 48px;
+  text-align: left;
+}
+
+.page-hero .eyebrow {
+  margin: 0 0 14px;
+}
+
+.page-hero h1 {
+  margin: 0;
+  line-height: 1.1;
+}
+
+.page-hero .lead {
+  margin: 20px 0 0;
+  line-height: 1.65;
+}
+
+.section,
+.home-dashboard {
+  padding-block: var(--section-space);
+}
+
+.section--light {
+  border-top: 1px solid #ffffff24;
+  background: #f3f6f9;
+}
+
+.section-heading {
+  margin-bottom: var(--content-gap);
+}
+
+.section-heading .eyebrow {
+  margin: 0 0 10px;
+}
+
+.home-hero {
+  min-height: 620px;
+  align-items: flex-start;
+}
+
+.home-hero__content {
+  padding-block: calc(var(--header-edge) + var(--page-air)) 64px;
+}
+
+.team-switch {
+  margin-top: 28px;
+}
+
+.history-chapters {
+  gap: 48px;
+}
+
+.history-chapter {
+  padding-bottom: 40px;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --header-edge: calc(72px + env(safe-area-inset-top));
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --page-air: 40px;
+    --section-space: 48px;
+    --page-gutter: 28px;
+    --content-gap: 24px;
+  }
+
+  main,
+  main:not(:has(> .home-page)) {
+    padding-top: var(--header-edge);
+  }
+
+  .page-hero,
+  .page-hero--compact {
+    padding-block: var(--page-air);
+  }
+
+  .home-hero {
+    min-height: 520px;
+  }
+
+  .home-hero__content {
+    padding-block: var(--page-air) 48px;
+  }
+}
+
+@media (max-width: 700px) {
+  :root {
+    --page-air: 36px;
+    --section-space: 40px;
+    --page-gutter: 20px;
+    --content-gap: 24px;
+  }
+
+  .page-hero .eyebrow {
+    margin-bottom: 12px;
+  }
+
+  .page-hero .lead {
+    margin-top: 16px;
+  }
+
+  .home-hero {
+    min-height: 440px;
+  }
+
+  .home-hero__content {
+    padding-top: 40px;
+  }
+
+  .home-dashboard {
+    padding-block: 36px;
+  }
+
+  .dashboard-grid,
+  .card-grid,
+  .team-grid {
+    gap: 20px;
+  }
+
+  .history-chapters {
+    gap: 32px;
+  }
+
+  .history-chapter {
+    padding-bottom: 32px;
+  }
+
+  .page-jumps {
+    gap: 8px;
+    margin: 0 0 32px;
+  }
+
+  #contact-channels-title,
+  #captains-title,
+  #venues-title {
+    scroll-margin-top: 0;
+  }
+}
+
+@media (max-width: 359px) {
+  :root {
+    --page-gutter: 16px;
+  }
+}

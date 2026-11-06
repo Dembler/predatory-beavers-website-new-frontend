@@ -3,6 +3,7 @@ dist
 .nuxt
 .output
 .data
+artifacts/
 .env
 .env.*
 !.env.example

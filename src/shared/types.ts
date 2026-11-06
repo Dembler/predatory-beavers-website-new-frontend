@@ -48,10 +48,17 @@ export interface Venue {
   id: string
   name: string
   address: string
+  latitude?: number | null
+  longitude?: number | null
   description: string | null
 }
 export interface Match {
+  /** Public archive labels preserve a missing day or tip-off time. */
+  display_date?: string
+  date_precision?: 'day' | 'month' | 'year'
   id: string
+  source?: string
+  external_id?: string | null
   team_id: string
   team: Team
   competition_id: string
@@ -88,9 +95,34 @@ export interface StandingRow {
   points_against: number
   points_difference: number
 }
+export interface StandingsGame {
+  external_id: string
+  round_name: string
+  round?: number | null
+  tree?: number | null
+  sort_order: number
+  starts_at: string | null
+  date_precision: 'day' | 'time'
+  home_team_name: string
+  home_team_id?: string | null
+  home_team_logo_url?: string | null
+  away_team_name: string
+  away_team_id?: string | null
+  away_team_logo_url?: string | null
+  home_score: number | null
+  away_score: number | null
+  status: 'finished' | 'scheduled' | 'unpublished'
+  source_url: string
+}
 export interface Standings {
   competition: Competition
   rows: StandingRow[]
+  source_url?: string | null
+  tournament_id?: string | null
+  tournament_name?: string | null
+  stage_name?: string | null
+  stage_kind?: string
+  games?: StandingsGame[]
 }
 export interface Achievement {
   id: string

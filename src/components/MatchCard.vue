@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import TeamEmblem from '@/components/TeamEmblem.vue'
-import MatchOutcome from '@/components/MatchOutcome.vue'
 import type { Match } from '@/shared/types'
 
-type KnownStatus = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled'
+type KnownStatus = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled' | 'unpublished'
 type DisplayStatus = KnownStatus | 'unknown'
 type Outcome = 'win' | 'loss' | 'draw'
 
@@ -14,6 +13,7 @@ const KNOWN_STATUSES: readonly KnownStatus[] = [
   'finished',
   'postponed',
   'cancelled',
+  'unpublished',
 ]
 
 const props = withDefaults(
@@ -38,6 +38,7 @@ const statusLabels: Record<DisplayStatus, string> = {
   finished: 'Завершён',
   postponed: 'Перенесён',
   cancelled: 'Отменён',
+  unpublished: 'Результат не опубликован',
   unknown: 'Статус уточняется',
 }
 const statusLabel = computed(() => statusLabels[status.value])
@@ -70,30 +71,68 @@ const outcome = computed<Outcome | null>(() =>
         : 'draw',
 )
 
+const winningSide = computed(() => {
+  if (status.value !== 'finished' || !hasScore.value) return null
+  if (props.match.home_score === props.match.away_score) return null
+  return props.match.home_score! > props.match.away_score! ? 'home' : 'away'
+})
+const sideClass = (side: 'home' | 'away') => ({
+  'is-winner': winningSide.value === side,
+  'is-loser': winningSide.value !== null && winningSide.value !== side,
+})
+const sideDescription = (side: 'home' | 'away') => {
+  const name = side === 'home' ? props.match.home_team_name : props.match.away_team_name
+  const score = side === 'home' ? props.match.home_score : props.match.away_score
+  return `${name}: ${score}${winningSide.value === side ? ', победитель' : ''}`
+}
+const scoreDescription = computed(() => {
+  const scores = `${props.match.home_team_name} ${props.match.home_score}, ${props.match.away_team_name} ${props.match.away_score}`
+  if (status.value === 'live') return `Текущий счёт: ${scores}`
+  const winner =
+    winningSide.value === 'home' ? props.match.home_team_name : props.match.away_team_name
+  return `Итоговый счёт: ${scores}. ${winningSide.value ? `Победитель — ${winner}` : 'Равный счёт'}`
+})
+
+// The calendar's real notes are stage names, plus a region name. Never render raw
+// imported provenance or assume the meaning of ASB's numbered semifinal brackets.
+const stage = computed(() => {
+  const note = props.match.notes?.trim().replace(/\s+/gu, ' ') ?? ''
+  const place = note.match(/^(?:(?:финал|матч)\s+за\s+)?([35])(?:-?[еe])?\s+место(?:[.;]|$)/iu)
+  if (place) return `Матч за ${place[1]}-е место`
+  if (/^1\/2(?:\s+финала)?(?:\s*\(\d+\))?$/u.test(note)) return 'Полуфинал'
+  if (/^1\/4(?:\s+финала)?(?:\s*\(\d+\))?$/u.test(note)) return 'Четвертьфинал'
+  if (/^1\/8(?:\s+финала)?(?:\s*\(\d+\))?$/u.test(note)) return '1/8 финала'
+  if (/^4\s*[-–]\s*6\s+мест[ао]$/u.test(note)) return 'Матчи за 4–6-е места'
+  if (/^финал(?:ьный матч)?(?:[.;]|$)/iu.test(note)) return 'Финал'
+  if (/^(?:полуфинал|четвертьфинал)(?:[.;]|$)/iu.test(note)) return note.split(/[.;]/u)[0]!
+  return /^(?:круговой турнир|групповой этап|плей-офф|товарищеский матч|демонстрационный матч|группа [А-ЯA-Z\d])$/iu.test(
+    note,
+  )
+    ? note
+    : null
+})
+
 const centerNote = computed(() => {
   if (status.value === 'live') return 'Счёт не указан'
   if (status.value === 'postponed') return 'Дата уточняется'
   if (status.value === 'cancelled') return 'Матч отменён'
   if (status.value === 'finished') return 'Счёт уточняется'
+  if (status.value === 'unpublished') return 'Счёт не опубликован'
   return 'Статус уточняется'
 })
 
 const showMetaDate = computed(() => status.value !== 'scheduled' && status.value !== 'unknown')
 
-const teamCategoryLabel = computed(() => {
-  if (props.match.team?.category === 'women') return 'Женская команда'
-  if (props.match.team?.category === 'men') return 'Мужская команда'
-  return 'Команда клуба'
-})
-
-const venueMapUrl = computed(() => {
-  const address = props.match.venue?.address.trim()
-  if (!props.featured || !address || address === props.match.venue?.name || !/\d/u.test(address))
-    return null
-  return `https://yandex.ru/maps/?text=${encodeURIComponent(address)}`
+const teamCategory = computed(() => {
+  if (props.match.team?.category === 'women') return { short: 'Ж', label: 'Женский матч' }
+  if (props.match.team?.category === 'men') return { short: 'М', label: 'Мужской матч' }
+  return null
 })
 
 const startsAt = computed(() => new Date(props.match.starts_at))
+const timeKnown = computed(
+  () => !props.match.date_precision && !Number.isNaN(startsAt.value.getTime()),
+)
 
 const formatPart = (formatter: Intl.DateTimeFormat, fallback = '—') =>
   Number.isNaN(startsAt.value.getTime()) ? fallback : formatter.format(startsAt.value)
@@ -101,14 +140,14 @@ const formatPart = (formatter: Intl.DateTimeFormat, fallback = '—') =>
 const dayLabel = computed(() =>
   formatPart(new Intl.DateTimeFormat('ru-RU', { day: 'numeric', timeZone: 'Europe/Moscow' })),
 )
-const monthShortLabel = computed(() =>
-  formatPart(
-    new Intl.DateTimeFormat('ru-RU', { month: 'short', timeZone: 'Europe/Moscow' }),
-  ).replace(/\.$/, ''),
-)
-const monthLongLabel = computed(() =>
-  formatPart(new Intl.DateTimeFormat('ru-RU', { month: 'long', timeZone: 'Europe/Moscow' })),
-)
+const monthPart = (month: 'short' | 'long') =>
+  Number.isNaN(startsAt.value.getTime())
+    ? '—'
+    : (new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month, timeZone: 'Europe/Moscow' })
+        .formatToParts(startsAt.value)
+        .find((part) => part.type === 'month')?.value ?? '—')
+const monthShortLabel = computed(() => monthPart('short').replace(/\.$/, ''))
+const monthLongLabel = computed(() => monthPart('long'))
 const weekdayLabel = computed(() =>
   formatPart(
     new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: 'Europe/Moscow' }),
@@ -125,7 +164,9 @@ const timeLabel = computed(() =>
   ),
 )
 const yearLabel = computed(() =>
-  formatPart(new Intl.DateTimeFormat('ru-RU', { year: 'numeric', timeZone: 'Europe/Moscow' })),
+  props.match.date_precision === 'year'
+    ? (props.match.display_date?.match(/\b20\d{2}\b/u)?.[0] ?? '—')
+    : formatPart(new Intl.DateTimeFormat('ru-RU', { year: 'numeric', timeZone: 'Europe/Moscow' })),
 )
 
 const dateHeading = computed(() =>
@@ -133,10 +174,12 @@ const dateHeading = computed(() =>
     ? 'Дата уточняется'
     : `${dayLabel.value} ${monthLongLabel.value}`,
 )
-const fullDateLabel = computed(() =>
-  Number.isNaN(startsAt.value.getTime())
-    ? 'Дата уточняется'
-    : `${dayLabel.value} ${monthShortLabel.value} ${yearLabel.value}, ${timeLabel.value}`,
+const fullDateLabel = computed(
+  () =>
+    props.match.display_date ||
+    (Number.isNaN(startsAt.value.getTime())
+      ? 'Дата уточняется'
+      : `${dayLabel.value} ${monthShortLabel.value} ${yearLabel.value}${timeKnown.value ? `, ${timeLabel.value}` : ''}`),
 )
 </script>
 
@@ -144,6 +187,8 @@ const fullDateLabel = computed(() =>
   <article
     v-if="!isRow"
     class="match-card"
+    :data-outcome="outcome"
+    :data-winning-side="winningSide"
     :class="[
       `match-card--${status}`,
       {
@@ -158,15 +203,24 @@ const fullDateLabel = computed(() =>
       <p class="match-card__tournament" :title="match.competition.name">
         {{ match.competition.name }}
       </p>
-      <MatchOutcome v-if="outcome" :outcome="outcome" :difference="difference" />
-      <span v-else class="match-card__status" :class="`match-card__status--${status}`">
-        <i v-if="status === 'live'" class="match-card__live-dot" aria-hidden="true"></i>
-        {{ statusLabel }}
-      </span>
+      <div class="match-card__labels">
+        <span
+          v-if="teamCategory"
+          class="match-card__category"
+          role="img"
+          :aria-label="teamCategory.label"
+          :title="teamCategory.label"
+          >{{ teamCategory.short }}</span
+        >
+        <span class="match-card__status" :class="`match-card__status--${status}`">
+          <i v-if="status === 'live'" class="match-card__live-dot" aria-hidden="true"></i>
+          {{ statusLabel }}
+        </span>
+      </div>
     </header>
 
     <div class="match-card__main" :class="{ 'match-card__main--scored': hasScore }">
-      <div class="match-card__team">
+      <div class="match-card__team" :class="sideClass('home')">
         <TeamEmblem
           class="match-card__logo"
           :name="match.home_team_name"
@@ -180,6 +234,8 @@ const fullDateLabel = computed(() =>
         <span
           v-if="hasScore"
           class="match-card__team-score"
+          role="img"
+          :aria-label="sideDescription('home')"
           :aria-live="status === 'live' ? 'polite' : undefined"
           >{{ match.home_score }}</span
         >
@@ -189,29 +245,32 @@ const fullDateLabel = computed(() =>
         <template v-if="hasScore">
           <p
             class="match-card__score"
+            role="group"
+            :aria-label="scoreDescription"
             :aria-live="status === 'live' ? 'polite' : undefined"
             :aria-atomic="status === 'live' ? 'true' : undefined"
           >
-            <span>{{ match.home_score }}</span
-            ><i>:</i><span>{{ match.away_score }}</span>
+            <span :class="sideClass('home')" data-side="home">{{ match.home_score }}</span
+            ><i>:</i><span :class="sideClass('away')" data-side="away">{{ match.away_score }}</span>
           </p>
           <span v-if="status === 'live'" class="match-card__live-label">Идёт</span>
-          <span v-else class="match-card__score-caption">Итоговый счёт</span>
         </template>
         <template v-else-if="status === 'live'">
           <span class="match-card__no-score">Счёт не указан</span>
           <span class="match-card__live-label">Идёт</span>
         </template>
         <template v-else-if="status === 'scheduled' || status === 'unknown'">
-          <time class="match-card__time" :datetime="match.starts_at">{{ timeLabel }}</time>
-          <span class="match-card__date">{{ dateHeading }}</span>
+          <time v-if="timeKnown" class="match-card__time" :datetime="match.starts_at">{{
+            timeLabel
+          }}</time>
+          <span class="match-card__date">{{ match.display_date || dateHeading }}</span>
         </template>
         <template v-else>
           <span class="match-card__no-score">{{ centerNote }}</span>
         </template>
       </div>
 
-      <div class="match-card__team">
+      <div class="match-card__team" :class="sideClass('away')">
         <TeamEmblem
           class="match-card__logo"
           :name="match.away_team_name"
@@ -225,6 +284,8 @@ const fullDateLabel = computed(() =>
         <span
           v-if="hasScore"
           class="match-card__team-score"
+          role="img"
+          :aria-label="sideDescription('away')"
           :aria-live="status === 'live' ? 'polite' : undefined"
           >{{ match.away_score }}</span
         >
@@ -234,27 +295,16 @@ const fullDateLabel = computed(() =>
     <footer class="match-card__meta">
       <span v-if="showMetaDate" class="match-card__meta-item">{{ fullDateLabel }}</span>
       <span v-if="match.venue" class="match-card__meta-item">{{ match.venue.name }}</span>
-      <span class="match-card__meta-item">{{ teamCategoryLabel }}</span>
-      <a
-        v-if="venueMapUrl"
-        class="match-card__map-link"
-        :href="venueMapUrl"
-        target="_blank"
-        rel="noopener noreferrer"
-        :aria-label="`Открыть ${match.venue?.name} на карте`"
-        >На карте ↗</a
-      >
     </footer>
 
-    <details v-if="match.notes" class="match-card__details">
-      <summary>Подробнее о матче</summary>
-      <p>{{ match.notes }}</p>
-    </details>
+    <p v-if="stage" class="match-card__stage">{{ stage }}</p>
   </article>
 
   <article
     v-else
     class="match-card match-card--row"
+    :data-outcome="outcome"
+    :data-winning-side="winningSide"
     :class="[
       `match-card--${status}`,
       {
@@ -266,23 +316,43 @@ const fullDateLabel = computed(() =>
   >
     <header class="match-card__row-heading">
       <div class="match-card__row-date">
-        <time :datetime="match.starts_at" :title="fullDateLabel">
-          <b>{{ dayLabel }}</b>
-          <span>{{ monthShortLabel }}</span>
-          <span class="match-card__row-year">{{ yearLabel }}</span>
-          <small>{{ weekdayLabel }} · {{ timeLabel }}</small>
+        <time :datetime="match.starts_at || undefined" :title="fullDateLabel">
+          <template v-if="match.date_precision === 'year'">
+            <b>{{ yearLabel }}</b
+            ><span>год</span>
+          </template>
+          <template
+            v-else-if="match.date_precision === 'month' || Number.isNaN(startsAt.getTime())"
+          >
+            <span>{{ fullDateLabel }}</span>
+          </template>
+          <template v-else>
+            <b>{{ dayLabel }}</b>
+            <span>{{ monthShortLabel }}</span>
+            <span class="match-card__row-year">{{ yearLabel }}</span>
+            <small v-if="timeKnown">{{ weekdayLabel }} · {{ timeLabel }}</small>
+          </template>
         </time>
       </div>
-      <MatchOutcome v-if="outcome" :outcome="outcome" :difference="difference" />
-      <span v-else class="match-card__status" :class="`match-card__status--${status}`">
-        <i v-if="status === 'live'" class="match-card__live-dot" aria-hidden="true"></i>
-        {{ statusLabel }}
-      </span>
+      <div class="match-card__labels">
+        <span
+          v-if="teamCategory"
+          class="match-card__category"
+          role="img"
+          :aria-label="teamCategory.label"
+          :title="teamCategory.label"
+          >{{ teamCategory.short }}</span
+        >
+        <span class="match-card__status" :class="`match-card__status--${status}`">
+          <i v-if="status === 'live'" class="match-card__live-dot" aria-hidden="true"></i>
+          {{ statusLabel }}
+        </span>
+      </div>
     </header>
 
     <div class="match-card__row-body">
       <div class="match-card__row-teams">
-        <div class="match-card__row-team">
+        <div class="match-card__row-team" :class="sideClass('home')">
           <TeamEmblem
             class="match-card__logo"
             :name="match.home_team_name"
@@ -295,6 +365,8 @@ const fullDateLabel = computed(() =>
           <span
             v-if="hasScore"
             class="match-card__row-team-score"
+            role="img"
+            :aria-label="sideDescription('home')"
             :aria-live="status === 'live' ? 'polite' : undefined"
             >{{ match.home_score }}</span
           >
@@ -303,23 +375,28 @@ const fullDateLabel = computed(() =>
           <template v-if="hasScore">
             <p
               class="match-card__score"
+              role="group"
+              :aria-label="scoreDescription"
               :aria-live="status === 'live' ? 'polite' : undefined"
               :aria-atomic="status === 'live' ? 'true' : undefined"
             >
-              <span>{{ match.home_score }}</span
-              ><i>:</i><span>{{ match.away_score }}</span>
+              <span :class="sideClass('home')" data-side="home">{{ match.home_score }}</span
+              ><i>:</i
+              ><span :class="sideClass('away')" data-side="away">{{ match.away_score }}</span>
             </p>
-            <span class="match-card__score-caption">
-              {{ status === 'live' ? 'Текущий счёт' : 'Итоговый счёт' }}
-            </span>
+            <span v-if="status === 'live'" class="match-card__score-caption">Текущий счёт</span>
           </template>
           <template v-else-if="status === 'scheduled' || status === 'unknown'">
-            <time class="match-card__time" :datetime="match.starts_at">{{ timeLabel }}</time>
-            <span class="match-card__score-caption">Начало · МСК</span>
+            <time v-if="timeKnown" class="match-card__time" :datetime="match.starts_at">{{
+              timeLabel
+            }}</time>
+            <span class="match-card__score-caption">{{
+              timeKnown ? 'Начало · МСК' : fullDateLabel
+            }}</span>
           </template>
           <span v-else class="match-card__no-score">{{ centerNote }}</span>
         </div>
-        <div class="match-card__row-team">
+        <div class="match-card__row-team" :class="sideClass('away')">
           <TeamEmblem
             class="match-card__logo"
             :name="match.away_team_name"
@@ -332,6 +409,8 @@ const fullDateLabel = computed(() =>
           <span
             v-if="hasScore"
             class="match-card__row-team-score"
+            role="img"
+            :aria-label="sideDescription('away')"
             :aria-live="status === 'live' ? 'polite' : undefined"
             >{{ match.away_score }}</span
           >
@@ -340,18 +419,36 @@ const fullDateLabel = computed(() =>
       <p class="match-card__row-meta">
         <span>{{ match.competition.name }}</span>
         <span v-if="match.venue">{{ match.venue.name }}</span>
-        <span>{{ teamCategoryLabel }}</span>
       </p>
     </div>
 
-    <details v-if="match.notes" class="match-card__details match-card__details--row">
-      <summary>Подробнее о матче</summary>
-      <p>{{ match.notes }}</p>
-    </details>
+    <p v-if="stage" class="match-card__stage match-card__stage--row">{{ stage }}</p>
   </article>
 </template>
 
 <style scoped>
+.match-card__labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.match-card__category {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 26px;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid #d7e1eb;
+  border-radius: 7px;
+  background: #f5f8fb;
+  color: #435b73;
+  font:
+    700 0.75rem/1.4 'Roboto',
+    sans-serif;
+}
 .match-card__row-team-score,
 .match-card__team-score {
   display: none;
@@ -363,9 +460,6 @@ const fullDateLabel = computed(() =>
   font:
     500 0.7rem/1.4 'Roboto',
     sans-serif;
-}
-.match-card__details p {
-  overflow-wrap: anywhere;
 }
 .match-card__head {
   flex-wrap: wrap;
@@ -409,29 +503,10 @@ const fullDateLabel = computed(() =>
   font-size: clamp(2.6rem, 4vw, 3.4rem);
   gap: 8px;
 }
-.match-card__map-link {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  padding: 6px 10px;
-  border: 1px solid #cad6e2;
-  border-radius: 6px;
-  color: var(--navy);
-  background: #fff;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
 .match-card__meta-item {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-}
-.match-card__map-link:hover {
-  background: #edf2f7;
-}
-.match-card__map-link:focus-visible {
-  outline: 3px solid #4d82b2;
-  outline-offset: 3px;
 }
 .match-card--row {
   display: block;
@@ -443,7 +518,7 @@ const fullDateLabel = computed(() =>
 }
 .match-card__row-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
@@ -549,33 +624,50 @@ const fullDateLabel = computed(() =>
   padding-left: 16px;
   border-left: 1px solid #d7e1eb;
 }
-.match-card__details--row {
+.match-card__stage {
   margin: 0 24px;
-  padding: 0;
+  padding: 14px 0 18px;
   border-top: 1px solid #e3eaf1;
+  color: #435b73;
+  font:
+    600 0.8rem/1.5 'Roboto',
+    sans-serif;
 }
-.match-card__details summary {
-  display: flex;
-  min-height: 48px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  list-style: none;
-  font-size: 0.8rem;
+.match-card__score > span {
+  position: relative;
+  min-width: 2ch;
 }
-.match-card__details summary::-webkit-details-marker {
-  display: none;
-}
-.match-card__details summary::after {
-  content: '+';
-  font-size: 1.3rem;
+.match-card .is-loser > strong,
+.match-card .match-card__score > .is-loser,
+.match-card .is-loser > .match-card__team-score,
+.match-card .is-loser > .match-card__row-team-score {
+  color: #53667a;
   font-weight: 400;
 }
-.match-card__details[open] summary::after {
-  content: '\2212';
+.match-card .is-winner > strong,
+.match-card .match-card__score > .is-winner,
+.match-card .is-winner > .match-card__team-score,
+.match-card .is-winner > .match-card__row-team-score {
+  color: #042a4e;
+  font-weight: 700;
 }
-.match-card__details p {
-  margin: 0 0 20px;
+.match-card__score > .is-winner::after,
+.is-winner > .match-card__team-score::after,
+.is-winner > .match-card__row-team-score::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -7px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 5px solid currentColor;
+  transform: translateY(-50%);
+}
+.match-card__team-score,
+.match-card__row-team-score {
+  position: relative;
 }
 @media (min-width: 701px) and (max-width: 1000px) {
   .match-card__row-teams {
@@ -591,6 +683,9 @@ const fullDateLabel = computed(() =>
   }
 }
 @media (max-width: 700px) {
+  .match-card__stage {
+    margin-inline: 18px;
+  }
   .match-card__head,
   .match-card--featured .match-card__head {
     padding: 18px 18px 0;
@@ -717,9 +812,6 @@ const fullDateLabel = computed(() =>
   .match-card__row-meta > span + span {
     padding-left: 0;
     border-left: 0;
-  }
-  .match-card__details--row {
-    margin: 0 18px;
   }
 }
 </style>

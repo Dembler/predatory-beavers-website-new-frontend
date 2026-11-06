@@ -1,10 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import MatchOutcome from '@/components/MatchOutcome.vue'
 import TeamEmblem from '@/components/TeamEmblem.vue'
 import type { Match } from '@/shared/types'
 
 const props = defineProps<{ matches: Match[] }>()
+
+function matchStage(notes: string | null) {
+  const note = notes?.trim().replace(/\s+/gu, ' ') ?? ''
+  const place = note.match(/^(?:(?:финал|матч)\s+за\s+)?([35])(?:-?[еe])?\s+место(?:[.;]|$)/iu)
+  if (place) return `Матч за ${place[1]}-е место`
+  if (/^1\/2(?:\s+финала)?(?:\s*\(\d+\))?$/u.test(note)) return 'Полуфинал'
+  if (/^1\/4(?:\s+финала)?(?:\s*\(\d+\))?$/u.test(note)) return 'Четвертьфинал'
+  if (/^1\/8(?:\s+финала)?(?:\s*\(\d+\))?$/u.test(note)) return '1/8 финала'
+  if (/^4\s*[-–]\s*6\s+мест[ао]$/u.test(note)) return 'Матчи за 4–6-е места'
+  if (/^финал(?:ьный матч)?(?:[.;]|$)/iu.test(note)) return 'Финал'
+  if (/^(?:полуфинал|четвертьфинал)(?:[.;]|$)/iu.test(note)) return note.split(/[.;]/u)[0]!
+  return /^(?:круговой турнир|групповой этап|плей-офф|товарищеский матч|демонстрационный матч|группа [А-ЯA-Z\d])$/iu.test(
+    note,
+  )
+    ? note
+    : null
+}
 
 const dateFormatter = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
@@ -30,9 +46,23 @@ const rows = computed(() =>
     return {
       match,
       scored,
-      difference,
+      category:
+        match.team?.category === 'men'
+          ? { short: 'М', label: 'Мужской матч' }
+          : match.team?.category === 'women'
+            ? { short: 'Ж', label: 'Женский матч' }
+            : null,
+      winner:
+        !scored || match.home_score === match.away_score
+          ? null
+          : match.home_score! > match.away_score!
+            ? 0
+            : 1,
+      stage: matchStage(match.notes),
       outcome,
-      date: Number.isNaN(date.getTime()) ? 'Дата уточняется' : dateFormatter.format(date),
+      date:
+        match.display_date ||
+        (Number.isNaN(date.getTime()) ? 'Дата уточняется' : dateFormatter.format(date)),
       teams: [
         {
           name: match.home_team_name,
@@ -52,65 +82,42 @@ const rows = computed(() =>
     }
   }),
 )
-
-const shared = computed(() => {
-  const first = props.matches[0]
-  if (!first) return { category: '', competition: '', season: '' }
-  return {
-    category: props.matches.every((match) => match.team.category === first.team.category)
-      ? first.team.category === 'women'
-        ? 'Женская команда'
-        : 'Мужская команда'
-      : 'Команды клуба',
-    competition: props.matches.every((match) => match.competition.id === first.competition.id)
-      ? first.competition.name
-      : '',
-    season: props.matches.every((match) => match.competition.season === first.competition.season)
-      ? first.competition.season
-      : '',
-  }
-})
-
-const plural = (count: number, words: [string, string, string]) => {
-  const form = new Intl.PluralRules('ru-RU').select(count)
-  return `${count} ${words[form === 'one' ? 0 : form === 'few' ? 1 : 2]}`
-}
-const record = computed(() => {
-  const wins = rows.value.filter((row) => row.outcome === 'win').length
-  const losses = rows.value.filter((row) => row.outcome === 'loss').length
-  const draws = rows.value.filter((row) => row.outcome === 'draw').length
-  return [
-    wins ? plural(wins, ['победа', 'победы', 'побед']) : '',
-    losses ? plural(losses, ['поражение', 'поражения', 'поражений']) : '',
-    draws ? plural(draws, ['ничья', 'ничьи', 'ничьих']) : '',
-  ].filter(Boolean)
-})
 </script>
 
 <template>
   <div class="recent-results">
-    <header class="recent-results__header">
-      <div class="recent-results__context">
-        <strong>{{ shared.category }}</strong>
-        <span v-if="shared.competition">{{ shared.competition }}</span>
-        <span v-if="shared.season">Сезон {{ shared.season }}</span>
-      </div>
-      <p v-if="record.length" class="recent-results__record">
-        <span>За {{ plural(matches.length, ['матч', 'матча', 'матчей']) }}</span>
-        <strong>{{ record.join(' · ') }}</strong>
-      </p>
-    </header>
-
     <ol class="recent-results__list" aria-label="Последние результаты">
-      <li v-for="row in rows" :key="row.match.id" class="result-row">
-        <time class="result-row__date" :datetime="row.match.starts_at">{{ row.date }}</time>
+      <li
+        v-for="row in rows"
+        :key="row.match.id"
+        class="result-row"
+        :data-outcome="row.outcome"
+        :data-winning-side="row.winner === 0 ? 'home' : row.winner === 1 ? 'away' : undefined"
+      >
+        <div class="result-row__heading">
+          <time class="result-row__date" :datetime="row.match.starts_at || undefined">{{
+            row.date
+          }}</time>
+          <span
+            v-if="row.category"
+            class="result-row__category"
+            role="img"
+            :aria-label="row.category.label"
+            :title="row.category.label"
+            >{{ row.category.short }}</span
+          >
+        </div>
 
         <div class="result-row__fixture">
           <div
             v-for="(team, index) in row.teams"
             :key="index"
             class="result-row__team"
-            :class="{ 'result-row__team--club': team.club }"
+            :class="{
+              'result-row__team--club': team.club,
+              'is-winner': row.winner === index,
+              'is-loser': row.winner !== null && row.winner !== index,
+            }"
           >
             <span class="result-row__name">
               <TeamEmblem
@@ -123,32 +130,28 @@ const record = computed(() => {
               />
               <span>{{ team.name }}</span>
             </span>
-            <strong v-if="row.scored" class="result-row__score">{{ team.score }}</strong>
+            <strong
+              v-if="row.scored"
+              class="result-row__score"
+              role="img"
+              :aria-label="`${team.name}: ${team.score}${row.winner === index ? ', победитель' : ''}`"
+              >{{ team.score }}</strong
+            >
           </div>
           <span v-if="!row.scored" class="result-row__unconfirmed">Счёт уточняется</span>
         </div>
 
-        <div v-if="row.outcome" class="result-row__outcome">
-          <MatchOutcome :outcome="row.outcome" :difference="row.difference" tone="dark" />
-        </div>
-
-        <div
-          v-if="
-            row.match.notes ||
-            !shared.competition ||
-            shared.category === 'Команды клуба' ||
-            !shared.season ||
-            row.match.venue
-          "
-          class="result-row__context"
-        >
-          <p v-if="row.match.notes" class="result-row__stage">{{ row.match.notes }}</p>
+        <div class="result-row__context">
+          <p v-if="row.stage" class="result-row__stage">{{ row.stage }}</p>
           <p class="result-row__meta">
-            <span v-if="!shared.competition">{{ row.match.competition.name }}</span>
-            <span v-if="shared.category === 'Команды клуба'">
-              {{ row.match.team.category === 'women' ? 'Женская команда' : 'Мужская команда' }}
-            </span>
-            <span v-if="!shared.season">Сезон {{ row.match.competition.season }}</span>
+            <span>{{ row.match.competition.name }}</span>
+            <span
+              v-if="
+                row.match.competition.season &&
+                !row.match.competition.name.includes(row.match.competition.season)
+              "
+              >Сезон {{ row.match.competition.season }}</span
+            >
             <span v-if="row.match.venue">{{ row.match.venue.name }}</span>
           </p>
         </div>
@@ -164,40 +167,6 @@ const record = computed(() => {
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-
-.recent-results__header {
-  align-items: flex-start;
-  gap: 20px;
-  padding: 0 0 20px;
-  border: 0;
-  background: transparent;
-}
-
-.recent-results__context {
-  min-width: 0;
-  gap: 6px 16px;
-  font-size: 0.88rem;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-
-.recent-results__context strong {
-  font-size: 0.95rem;
-}
-
-.recent-results__record {
-  min-width: 0;
-  max-width: 40%;
-  flex-shrink: 1;
-  gap: 5px;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.recent-results__record > span {
-  font-size: 0.8rem;
 }
 
 .recent-results__list {
@@ -223,12 +192,35 @@ const record = computed(() => {
   border-top: 1px solid #ffffff26;
 }
 
-.result-row__date {
-  grid-column: 1;
+.result-row__heading {
+  display: flex;
+  grid-column: 1 / -1;
   grid-row: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   min-width: 0;
-  align-self: start;
-  padding-top: 3px;
+}
+
+.result-row__category {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 26px;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid #ffffff30;
+  border-radius: 7px;
+  background: #ffffff0a;
+  color: #e3edf6;
+  font:
+    700 0.75rem/1.4 'Roboto',
+    sans-serif;
+}
+
+.result-row__date {
+  min-width: 0;
   font-size: 0.88rem;
   line-height: 1.5;
 }
@@ -284,14 +276,6 @@ const record = computed(() => {
   line-height: 1.5;
 }
 
-.result-row__outcome {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  max-width: 100%;
-  justify-self: end;
-}
-
 .result-row__context {
   grid-column: 1 / -1;
   grid-row: 3;
@@ -321,6 +305,29 @@ const record = computed(() => {
   display: none;
 }
 
+.result-row .is-winner .result-row__name > span,
+.result-row .is-winner .result-row__score {
+  color: #fff;
+  font-weight: 700;
+}
+.result-row .is-loser .result-row__name > span,
+.result-row .is-loser .result-row__score {
+  color: #aebdcb;
+  font-weight: 400;
+}
+.result-row__score {
+  position: relative;
+}
+.result-row .is-winner .result-row__score::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -7px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 5px solid currentColor;
+  transform: translateY(-50%);
+}
 @media (max-width: 1200px) {
   .recent-results__list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -337,11 +344,6 @@ const record = computed(() => {
     gap: 16px 20px;
   }
 
-  .result-row__outcome {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
   .result-row__fixture {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -354,51 +356,20 @@ const record = computed(() => {
 }
 
 @media (max-width: 600px) {
-  .recent-results__header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    padding-bottom: 18px;
-  }
-
-  .recent-results__context {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px 12px;
-    font-size: 0.85rem;
-  }
-
-  .recent-results__context strong {
-    flex-basis: 100%;
-    font-size: 0.95rem;
-  }
-
-  .recent-results__record {
-    display: flex;
-    max-width: none;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 6px 12px;
-    text-align: left;
-    font-size: 0.88rem;
-  }
-
   .result-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     padding: 20px;
   }
 
-  .result-row__date,
+  .result-row__heading,
   .result-row__fixture,
-  .result-row__outcome,
   .result-row__context {
     grid-column: 1;
     grid-row: auto;
   }
 
   .result-row__date {
-    padding-top: 0;
     font-size: 0.85rem;
   }
 
@@ -415,11 +386,6 @@ const record = computed(() => {
 
   .result-row__score {
     font-size: 1.9rem;
-  }
-
-  .result-row__outcome {
-    display: block;
-    justify-self: start;
   }
 
   .result-row__context {

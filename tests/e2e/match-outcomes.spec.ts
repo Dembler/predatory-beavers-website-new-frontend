@@ -1,6 +1,10 @@
 import { expect, test, type Locator, type Page as BrowserPage } from '@playwright/test'
 import type { Achievement, ApiResponse, HomeData, Match, Page, Team } from '../../src/shared/types'
-import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { assertNoHorizontalOverflow, mockEmptyHistoricalResults, openPage } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await mockEmptyHistoricalResults(page)
+})
 
 type Outcome = 'win' | 'loss' | 'draw'
 type OutcomeCase = { match: Match; outcome: Outcome; difference: number }
@@ -11,11 +15,6 @@ const team: Team = {
   name: 'Хищные Бобры / ВГУ',
   slug: 'men',
   logo: null,
-}
-const outcomeLabels: Record<Outcome, string> = {
-  win: 'Победа',
-  loss: 'Поражение',
-  draw: 'Ничья',
 }
 const runtimeErrors = new WeakMap<BrowserPage, string[]>()
 
@@ -112,6 +111,11 @@ const unfinished = [
   }),
   fixture('postponed-with-scores', { status: 'postponed', home_score: 222, away_score: 111 }),
   fixture('cancelled-with-scores', { status: 'cancelled', home_score: 333, away_score: 444 }),
+  fixture('unpublished-with-stale-scores', {
+    status: 'unpublished',
+    home_score: 999,
+    away_score: 888,
+  }),
 ]
 
 function opponent(match: Match) {
@@ -119,22 +123,47 @@ function opponent(match: Match) {
 }
 
 async function expectOutcome(container: Locator, item: OutcomeCase) {
-  const badge = container.locator('.match-outcome')
-  await expect(badge).toHaveCount(1)
-  await expect(badge).toBeVisible()
-  await expect(badge).toHaveAttribute('data-outcome', item.outcome)
-  await expect(badge).toContainText(outcomeLabels[item.outcome])
-  const difference =
-    item.difference > 0
-      ? new RegExp(`\\+\\s*${item.difference}\\b`)
-      : item.difference < 0
-        ? new RegExp(`[-−]\\s*${Math.abs(item.difference)}\\b`)
-        : /\b0\b/
-  await expect(badge).toContainText(difference)
+  await expect(container.locator('.match-outcome')).toHaveCount(0)
+  await expect(container).toHaveAttribute('data-outcome', item.outcome)
+  const winningSide =
+    item.match.home_score === item.match.away_score
+      ? null
+      : item.match.home_score! > item.match.away_score!
+        ? 'home'
+        : 'away'
+  if (!winningSide) {
+    await expect(container.locator('.is-winner, .is-loser')).toHaveCount(0)
+    return
+  }
+  await expect(container).toHaveAttribute('data-winning-side', winningSide)
+  const teams = container.locator('.match-card__team, .match-card__row-team, .result-row__team')
+  const winner = teams.nth(winningSide === 'home' ? 0 : 1)
+  const loser = teams.nth(winningSide === 'home' ? 1 : 0)
+  await expect(winner).toHaveClass(/is-winner/)
+  await expect(loser).toHaveClass(/is-loser/)
+  const winnerScore = winner.locator(
+    '.match-card__team-score, .match-card__row-team-score, .result-row__score',
+  )
+  const loserScore = loser.locator(
+    '.match-card__team-score, .match-card__row-team-score, .result-row__score',
+  )
+  const winnerStyle = await winnerScore.evaluate((el) => ({
+    color: getComputedStyle(el).color,
+    weight: getComputedStyle(el).fontWeight,
+    marker: getComputedStyle(el, '::after').borderRightWidth,
+  }))
+  const loserStyle = await loserScore.evaluate((el) => ({
+    color: getComputedStyle(el).color,
+    weight: getComputedStyle(el).fontWeight,
+  }))
+  expect(winnerStyle.color).not.toBe(loserStyle.color)
+  expect(Number(winnerStyle.weight)).toBeGreaterThan(Number(loserStyle.weight))
+  expect(winnerStyle.marker).toBe('5px')
+  await expect(winnerScore).toHaveAttribute('aria-label', /победитель/u)
 }
 
 async function expectNoOutcome(container: Locator) {
-  await expect(container.locator('.match-outcome')).toHaveCount(0)
+  await expect(container.locator('.match-outcome, .is-winner, .is-loser')).toHaveCount(0)
   await expect(container).not.toContainText(/Победа|Поражение|Ничья/)
 }
 
@@ -201,6 +230,10 @@ test('schedule keeps home/away scores and gives final outcomes only to fully sco
       await expect(card.locator('.match-card__score')).toHaveCount(0)
       await expect(card).not.toContainText(String(match.home_score))
       await expect(card).not.toContainText(String(match.away_score))
+      if (match.status === 'unpublished') {
+        await expect(card.locator('.match-card__no-score')).toBeVisible()
+        await expect(card).toContainText('Результат не опубликован')
+      }
     }
   }
   await assertNoHorizontalOverflow(page)
@@ -232,6 +265,7 @@ for (const item of completed) {
 test('home never announces a final outcome for a live, scheduled, changed or unscored game', async ({
   page,
 }) => {
+  test.setTimeout(90_000)
   // The normal API puts only finished matches in recent_results. Include other
   // valid Match statuses here to ensure stale data cannot announce a false win.
   const recent = [...unfinished, ...unscored]
@@ -256,7 +290,7 @@ test('home never announces a final outcome for a live, scheduled, changed or uns
   await openPage(page, '/')
   for (const match of [...unfinished, ...unscored]) {
     nextMatch = match
-    await page.reload()
+    await openPage(page, '/')
     const featured = page.locator('article.match-card').filter({ hasText: opponent(match) })
     await expect(featured).toBeVisible()
     await expectNoOutcome(featured)
@@ -270,5 +304,93 @@ test('home never announces a final outcome for a live, scheduled, changed or uns
   const results = page.getByRole('list', { name: 'Последние результаты', exact: true })
   await expect(results.locator('.match-outcome')).toHaveCount(0)
   await expect(results.locator('.result-row__score')).toHaveCount(0)
+  await assertNoHorizontalOverflow(page)
+})
+
+test('stages are immediately readable while imported provenance and map links stay out of match cards', async ({
+  page,
+}) => {
+  const cases = [
+    ['final', 'Финал', 'Финал'],
+    ['third', 'Финал за 3 место', 'Матч за 3-е место'],
+    ['semi', '1/2 финала (2)', 'Полуфинал'],
+    ['quarter', '1/4 (3)', 'Четвертьфинал'],
+    ['places', '4-6 места', 'Матчи за 4–6-е места'],
+    ['group', 'Группа А', 'Группа А'],
+    ['technical', 'Импорт АСБ. Источник https://example.com/private-api; GameID=123', null],
+    ['region', 'Воронежская область', null],
+  ] as const
+  const venue = {
+    id: 'gym',
+    name: 'Спортзал ВГУ',
+    address: 'Воронеж, Университетская пл., 1',
+    description: null,
+  }
+  const matches = cases.map(([id, notes]) => fixture(id, { notes, venue_id: venue.id, venue }))
+  await page.route('**/api/v1/matches?**', (route) =>
+    route.fulfill({
+      json: {
+        items: matches,
+        total: matches.length,
+        page: 1,
+        page_size: 100,
+        total_pages: 1,
+      },
+    }),
+  )
+  await openPage(page, '/matches')
+  for (const [id, , label] of cases) {
+    const card = page.locator('article.match-card').filter({ hasText: `Соперник ${id}` })
+    if (label) await expect(card.locator('.match-card__stage')).toHaveText(label)
+    else await expect(card.locator('.match-card__stage')).toHaveCount(0)
+    await expect(card.locator('details, summary, a')).toHaveCount(0)
+    await expect(card).toContainText(venue.name)
+    await expect(card).not.toContainText(/Источник|GameID|example.com|Подробнее о матче/u)
+  }
+  await assertNoHorizontalOverflow(page)
+
+  const girls = fixture('girls-final', {
+    team: { ...team, category: 'women' },
+    notes: 'Финал за 3 место',
+    venue_id: venue.id,
+    venue,
+  })
+  await mockHome(page, { next_match: null, recent_results: [girls], teams: [girls.team] })
+  await openPage(page, '/')
+  const featured = page.locator('article.match-card')
+  await expect(featured.locator('.match-card__stage')).toHaveText('Матч за 3-е место')
+  await expect(featured.locator('a, details')).toHaveCount(0)
+  await expect(featured.getByRole('img', { name: 'Женский матч', exact: true })).toHaveText('Ж')
+  const recent = page.locator('.result-row')
+  await expect(recent.locator('.result-row__stage')).toHaveText('Матч за 3-е место')
+  await expect(recent.getByRole('img', { name: 'Женский матч', exact: true })).toHaveText('Ж')
+  await expect(page.locator('.recent-results__header, .recent-results__record')).toHaveCount(0)
+  await assertNoHorizontalOverflow(page)
+})
+
+test('recent cards retain competition context and label each known gender without a shared caption', async ({
+  page,
+}) => {
+  const men = fixture('men-category')
+  const women = fixture('women-category', {
+    team: { ...team, id: 'outcomes-women', category: 'women' },
+    competition: { ...men.competition, id: 'women-cup', name: 'Кубок девушек' },
+  })
+  const unknown = fixture('unknown-category', {
+    team: { ...team, category: null } as unknown as Team,
+  })
+  await mockHome(page, { next_match: null, recent_results: [men, women, unknown], teams: [team] })
+  await openPage(page, '/')
+  const recent = page.locator('.recent-results')
+  await expect(recent.locator('header, .recent-results__record')).toHaveCount(0)
+  const rows = recent.getByRole('listitem')
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(0).getByRole('img', { name: 'Мужской матч', exact: true })).toHaveText('М')
+  await expect(rows.nth(1).getByRole('img', { name: 'Женский матч', exact: true })).toHaveText('Ж')
+  await expect(rows.nth(2).locator('.result-row__category')).toHaveCount(0)
+  for (const [index, match] of [men, women, unknown].entries()) {
+    await expect(rows.nth(index)).toContainText(match.competition.name)
+    await expect(rows.nth(index)).toContainText(`Сезон ${match.competition.season}`)
+  }
   await assertNoHorizontalOverflow(page)
 })

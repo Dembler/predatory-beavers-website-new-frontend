@@ -1,7 +1,11 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import type { Match, Media } from '../../src/shared/types'
-import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { assertNoHorizontalOverflow, mockEmptyHistoricalResults, openPage } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await mockEmptyHistoricalResults(page)
+})
 
 test('paginated schedule loads every page, combines filters and separates cancelled games', async ({
   page,
@@ -54,7 +58,7 @@ test('paginated schedule loads every page, combines filters and separates cancel
     ...matches[103]!,
     team: { ...team, id: 'women', category: 'women' },
     team_id: 'women',
-    away_team_name: 'Женский соперник E2E',
+    away_team_name: 'Соперник девушек E2E',
   }
   const requested: number[] = []
   await page.route('**/api/v1/matches?**', async (route) => {
@@ -73,10 +77,14 @@ test('paginated schedule loads every page, combines filters and separates cancel
     })
   })
   await openPage(page, '/matches')
-  await expect(page.locator('article.match-card')).toHaveCount(104)
+  await expect(page.locator('article.match-card')).toHaveCount(26)
+  await expect(page.getByRole('navigation', { name: 'Страницы матчей' })).toContainText('1 / 5')
+  await expect(page.locator('.match-filters__summary')).toContainText('Найдено: 104')
   expect(requested).toEqual([1, 2])
   const awayWin = page.locator('article.match-card').filter({ hasText: 'Гостиный соперник' })
-  await expect(awayWin).toContainText('Победа')
+  await expect(awayWin).toHaveAttribute('data-winning-side', 'away')
+  await expect(awayWin.locator('.match-card__score [data-side="away"]')).toHaveClass(/is-winner/)
+  await expect(awayWin.locator('.match-outcome')).toHaveCount(0)
   await expect(awayWin).toHaveClass(/match-card--win/)
   const scheduled = page.locator('article.match-card').filter({ hasText: 'Будущий матч E2E' })
   await expect(scheduled.locator('.match-card__score')).toHaveCount(0)
@@ -101,9 +109,9 @@ test('paginated schedule loads every page, combines filters and separates cancel
       .map((item) => ({ id: item.id, targets: item.nodes.map((node) => node.target) })),
   ).toEqual([])
   await page.getByRole('combobox', { name: 'Команда', exact: true }).click()
-  await page.getByRole('option', { name: 'Женская команда', exact: true }).click()
+  await page.getByRole('option', { name: 'Девушки', exact: true }).click()
   await expect(page.locator('article.match-card')).toHaveCount(1)
-  await expect(page.locator('article.match-card')).toContainText('Женский соперник E2E')
+  await expect(page.locator('article.match-card')).toContainText('Соперник девушек E2E')
   await page.getByRole('combobox', { name: 'Статус', exact: true }).click()
   await page.getByRole('option', { name: 'Запланирован', exact: true }).click()
   await expect(page.locator('article.match-card')).toHaveCount(0)

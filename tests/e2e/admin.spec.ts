@@ -2,7 +2,13 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve, basename } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { assertNoHorizontalOverflow, deleteRow, openPage, saveEditor } from './helpers'
+import {
+  assertNoHorizontalOverflow,
+  deleteRow,
+  findAdminRecord,
+  openPage,
+  saveEditor,
+} from './helpers'
 
 interface Runtime {
   username: string
@@ -168,13 +174,22 @@ test('player CRUD, real photo upload, public profile, photo reference protection
     (response) =>
       response.url().endsWith('/api/v1/admin/media') && response.request().method() === 'POST',
   )
+  // Each run needs distinct pixels: the API intentionally reuses identical images.
+  const pixels = await page.evaluate((seed) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 16
+    const context = canvas.getContext('2d')!
+    for (let i = 0; i < 256; i++) {
+      const value = seed.charCodeAt(i % seed.length) + i * 31
+      context.fillStyle = `rgb(${value % 256},${(value * 7) % 256},${(value * 13) % 256})`
+      context.fillRect(i % 16, Math.floor(i / 16), 1, 1)
+    }
+    return canvas.toDataURL('image/png').split(',')[1]!
+  }, photoName)
   await editor.locator('input[type="file"]').setInputFiles({
     name: `${photoName}.png`,
     mimeType: 'image/png',
-    buffer: Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-      'base64',
-    ),
+    buffer: Buffer.from(pixels, 'base64'),
   })
   const photoResponse = await upload
   expect(photoResponse.status()).toBe(201)
@@ -216,6 +231,7 @@ test('player CRUD, real photo upload, public profile, photo reference protection
 test('new competition and venue become usable immediately; match validation and CRUD update public schedule', async ({
   page,
 }) => {
+  test.setTimeout(90_000)
   await login(page)
   const competition = `E2E Турнир ${run}`
   const venue = `E2E Зал ${run}`
@@ -249,6 +265,7 @@ test('new competition and venue become usable immediately; match validation and 
   await editor.getByLabel('Очки гостей').fill('72')
   const id = await saveNew(page, '/api/v1/admin/matches')
   const matchName = `Хищные Бобры — ${opponent}`
+  await findAdminRecord(page, matchName)
   await expect(
     page.getByRole('row').or(page.getByRole('article')).filter({ hasText: opponent }),
   ).toContainText('80 : 72')

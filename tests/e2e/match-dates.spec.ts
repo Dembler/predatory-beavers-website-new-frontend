@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { Match } from '../../src/shared/types'
-import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { assertNoHorizontalOverflow, mockEmptyHistoricalResults, openPage } from './helpers'
+
+test.beforeEach(async ({ page }) => {
+  await mockEmptyHistoricalResults(page)
+})
 
 const currentTime = new Date('2026-11-01T09:00:00Z')
 
@@ -69,10 +73,10 @@ test('only future scheduled games and live games appear as upcoming; past schedu
   await expect(upcoming).toContainText(futureScheduled.away_team_name)
   await expect(upcoming).not.toContainText(pastScheduled.away_team_name)
   await expect(upcoming).not.toContainText(finished.away_team_name)
-  await expect(group(page, 'Результаты').locator('article')).toHaveCount(1)
-  await expect(group(page, 'Результаты')).toContainText(finished.away_team_name)
+  await expect(group(page, 'Сыгранные матчи').locator('article')).toHaveCount(1)
+  await expect(group(page, 'Сыгранные матчи')).toContainText(finished.away_team_name)
 
-  const awaiting = group(page, 'Результат уточняется')
+  const awaiting = group(page, 'Счёт уточняется')
   await expect(awaiting.locator('article')).toHaveCount(1)
   await expect(awaiting).toContainText(pastScheduled.away_team_name)
   await expect(awaiting).toContainText('Официальный результат пока не опубликован')
@@ -80,8 +84,8 @@ test('only future scheduled games and live games appear as upcoming; past schedu
   await expect(awaiting.locator('.match-card__status--scheduled')).toBeVisible()
   await expect(page.locator('.match-group__heading h2')).toHaveText([
     'Ближайшие',
-    'Результаты',
-    'Результат уточняется',
+    'Сыгранные матчи',
+    'Счёт уточняется',
   ])
 
   await page.getByRole('combobox', { name: 'Статус', exact: true }).click()
@@ -90,7 +94,7 @@ test('only future scheduled games and live games appear as upcoming; past schedu
   await expect(upcoming.locator('article')).toHaveCount(1)
   await expect(upcoming).toContainText(futureScheduled.away_team_name)
   await expect(awaiting.locator('article')).toHaveCount(1)
-  await expect(group(page, 'Результаты')).toHaveCount(0)
+  await expect(group(page, 'Сыгранные матчи')).toHaveCount(0)
   await assertNoHorizontalOverflow(page)
 })
 
@@ -102,7 +106,7 @@ test('a schedule containing only past scheduled games shows no false upcoming or
   await openPage(page, '/matches?team=all')
   await expect(page.locator('article.match-card')).toHaveCount(1)
   await expect(page.getByRole('heading', { name: 'Ближайшие', exact: true })).toHaveCount(0)
-  await expect(group(page, 'Результат уточняется')).toContainText(past.away_team_name)
+  await expect(group(page, 'Счёт уточняется')).toContainText(past.away_team_name)
   await expect(page.locator('.match-filters__summary')).toContainText('Найдено: 1')
   await expect(page.getByText('По выбранным фильтрам матчей нет.', { exact: true })).toHaveCount(0)
 
@@ -110,6 +114,36 @@ test('a schedule containing only past scheduled games shows no false upcoming or
   await page.getByRole('option', { name: 'Запланирован', exact: true }).click()
   await expect(page.locator('article.match-card')).toHaveCount(1)
   await expect(page.getByRole('heading', { name: 'Ближайшие', exact: true })).toHaveCount(0)
-  await expect(group(page, 'Результат уточняется')).toContainText(past.away_team_name)
+  await expect(group(page, 'Счёт уточняется')).toContainText(past.away_team_name)
+  await assertNoHorizontalOverflow(page)
+})
+
+test('archive precision preserves a known year or day without inventing a tip-off time', async ({
+  page,
+}) => {
+  const yearOnly: Match = {
+    ...fixture('Игра с известным только годом', 'finished', ''),
+    display_date: '2023 год',
+    date_precision: 'year',
+  }
+  const dayOnly: Match = {
+    ...fixture('Игра с известным днём', 'finished', '2024-01-09'),
+    display_date: '9 января 2024',
+    date_precision: 'day',
+  }
+  await mockMatches(page, [yearOnly, dayOnly])
+  await openPage(page, '/matches?team=all')
+  const cards = page.locator('article.match-card')
+  await expect(cards).toHaveCount(2)
+  const year = cards.filter({ hasText: yearOnly.away_team_name })
+  await expect(year.locator('.match-card__row-date')).toHaveText(/2023\s*год/u)
+  await expect(year.locator('time')).not.toHaveAttribute('datetime', /2023-01-01/u)
+  const day = cards.filter({ hasText: dayOnly.away_team_name })
+  await expect(day.locator('.match-card__row-date')).toContainText('2024')
+  await expect(day.locator('.match-card__row-date')).toContainText('янв')
+  for (const card of [year, day]) {
+    await expect(card.locator('.match-card__time')).toHaveCount(0)
+    await expect(card.locator('.match-card__row-date')).not.toContainText(/00:00|03:00|МСК/u)
+  }
   await assertNoHorizontalOverflow(page)
 })

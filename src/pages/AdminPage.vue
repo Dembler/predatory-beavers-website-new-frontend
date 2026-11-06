@@ -138,7 +138,7 @@ const publication = (row: AdminRecord) => (row.active ? 'На сайте' : 'С�
 const teamOptions = computed(() =>
   teams.value.map((item) => ({
     value: item.id,
-    label: item.category === 'men' ? 'Мужская команда' : 'Женская команда',
+    label: item.category === 'men' ? 'Мужская команда' : 'Команда девушек',
   })),
 )
 interface ContentSectionConfig {
@@ -217,7 +217,7 @@ const config = computed((): AdminConfig => {
         { label: 'Игрок', value: (row) => text(row.full_name) },
         {
           label: 'Команда',
-          value: (row) => text((row.team as Team)?.category === 'women' ? 'Женская' : 'Мужская'),
+          value: (row) => text((row.team as Team)?.category === 'women' ? 'Девушки' : 'Мужская'),
         },
         { label: 'Амплуа', value: (row) => text(row.position) },
         { label: 'Публикация', value: publication },
@@ -535,7 +535,6 @@ const config = computed((): AdminConfig => {
         <div v-if="checking" class="state-panel" role="status">Проверяем сессию…</div>
         <form v-else-if="!user" class="login-card admin-form" @submit.prevent="signIn">
           <img src="/images/brand/club-emblem.webp" alt="" width="64" height="64" />
-          <p class="eyebrow">Хищные Бобры</p>
           <h2>Вход для команды</h2>
           <p>Управляйте составом, матчами и историей клуба.</p>
           <div class="form-field">
@@ -720,7 +719,7 @@ const config = computed((): AdminConfig => {
 }
 @media (max-width: 900px) {
   .admin-page .page-hero {
-    padding-block: 30px 24px;
+    padding-block: var(--page-air) 32px;
   }
   .admin-page .page-hero h1 {
     font-size: clamp(2rem, 8vw, 3rem);

@@ -4,23 +4,17 @@ import { RouterLink } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import MatchCard from '@/components/MatchCard.vue'
 import RecentResults from '@/components/RecentResults.vue'
+import ClubHonours from '@/components/ClubHonours.vue'
 import { useLoad } from '@/composables/useLoad'
 import { preferredTeamPath } from '@/composables/useTeamPreference'
 import { apiRequest } from '@/shared/api'
-import type { Achievement, ApiResponse, HomeData, Page } from '@/shared/types'
+import type { ApiResponse, HomeData } from '@/shared/types'
 
 const { data, pending, error, load } = useLoad(() =>
   apiRequest<ApiResponse<HomeData>>('/api/v1/home'),
 )
 const home = computed(() => data.value?.data)
 const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recent_results[0])
-const {
-  data: achievementsData,
-  pending: achievementsPending,
-  error: achievementsError,
-  load: loadAchievements,
-} = useLoad(() => apiRequest<Page<Achievement>>('/api/v1/achievements?page_size=6'))
-const achievements = computed(() => achievementsData.value?.items ?? [])
 </script>
 
 <template>
@@ -74,18 +68,17 @@ const achievements = computed(() => achievementsData.value?.items ?? [])
             empty-text="Ближайший матч пока не назначен."
             @retry="load"
           >
-            <p v-if="!home?.next_match" class="dashboard-main__schedule-note">
-              Новая игра пока не назначена. Вот результат последней встречи.
-            </p>
             <MatchCard v-if="featuredMatch" :match="featuredMatch" featured />
           </AsyncState>
         </div>
 
         <aside class="club-note">
           <span class="club-note__number">01</span>
-          <p class="eyebrow">Хищные Бобры</p>
           <h2>Одна команда.<br />Один характер.</h2>
-          <p>Мужская и женская команды ВГУ, объединённые игрой, характером и поддержкой трибун.</p>
+          <p>
+            Мужская команда и команда девушек ВГУ, объединённые игрой, характером и поддержкой
+            трибун.
+          </p>
           <RouterLink class="text-link" to="/club">История клуба <span>→</span></RouterLink>
         </aside>
       </div>
@@ -95,10 +88,8 @@ const achievements = computed(() => achievementsData.value?.items ?? [])
       <div class="container">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Игроки</p>
             <h2>Наши команды</h2>
           </div>
-          <p class="section-intro">Составы, амплуа и информация о каждом игроке клуба.</p>
         </div>
         <div class="team-grid team-grid--feature">
           <RouterLink class="team-card" to="/teams/men">
@@ -110,58 +101,26 @@ const achievements = computed(() => achievementsData.value?.items ?? [])
             />
             <span class="team-card__index">01</span>
             <div class="team-card__body">
-              <small>БК ВГУ</small><strong>Мужская команда</strong><b>Смотреть состав →</b>
+              <strong>Мужская команда</strong><b>Смотреть состав →</b>
             </div>
           </RouterLink>
           <RouterLink class="team-card" to="/teams/women">
             <img
               src="/images/team-women.webp"
-              alt="Женская команда Хищных Бобров"
+              alt="Команда девушек Хищных Бобров"
               loading="lazy"
               decoding="async"
             />
             <span class="team-card__index">02</span>
             <div class="team-card__body">
-              <small>БК ВГУ</small><strong>Женская команда</strong><b>Смотреть состав →</b>
+              <strong>Команда девушек</strong><b>Смотреть состав →</b>
             </div>
           </RouterLink>
         </div>
       </div>
     </section>
 
-    <section
-      v-if="achievementsPending || achievementsError || achievements.length"
-      class="section achievements-section"
-    >
-      <div class="container">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">История побед</p>
-            <h2>Достижения клуба</h2>
-          </div>
-          <RouterLink class="text-link" to="/club">О клубе <span>→</span></RouterLink>
-        </div>
-        <AsyncState
-          :pending="achievementsPending"
-          :error="achievementsError"
-          @retry="loadAchievements"
-        >
-          <div class="achievement-grid">
-            <article
-              v-for="achievement in achievements"
-              :key="achievement.id"
-              class="achievement-card"
-            >
-              <span>{{ achievement.achieved_at?.slice(0, 4) || '—' }}</span>
-              <div>
-                <small>{{ achievement.team.name }}</small>
-                <h3>{{ achievement.title }}</h3>
-              </div>
-            </article>
-          </div>
-        </AsyncState>
-      </div>
-    </section>
+    <ClubHonours />
 
     <section class="section results-section" aria-labelledby="recent-results-title">
       <div class="container">
@@ -188,15 +147,10 @@ const achievements = computed(() => achievementsData.value?.items ?? [])
 </template>
 
 <style scoped>
-.dashboard-main__schedule-note {
-  margin: 0 0 14px;
-  color: #d3dfeb;
-  font-size: 0.875rem;
-  line-height: 1.6;
+.dashboard-main :deep(.skeleton-grid) {
+  grid-template-columns: 1fr;
 }
-@media (max-width: 700px) {
-  .dashboard-main__schedule-note {
-    color: #435a70;
-  }
+.dashboard-main :deep(.skeleton:not(:first-child)) {
+  display: none;
 }
 </style>

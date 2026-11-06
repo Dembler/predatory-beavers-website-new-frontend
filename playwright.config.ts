@@ -16,7 +16,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:5173',
-    channel: process.env.E2E_BROWSER_CHANNEL || 'chromium',
+    channel: process.env.E2E_BROWSER_CHANNEL || undefined,
     locale: 'ru-RU',
     timezoneId: 'Europe/Moscow',
     reducedMotion: 'reduce',
