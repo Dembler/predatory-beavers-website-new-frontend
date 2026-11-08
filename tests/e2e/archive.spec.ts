@@ -1,8 +1,9 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import type { Match } from '../../src/shared/types'
 import type { PublicResult } from '../../src/shared/results'
 import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { archiveItem, calendarItem, mockCalendar } from './calendar-fixtures'
 
 function fixture(index: number, changes: Partial<Match> = {}): Match {
   return {
@@ -75,64 +76,6 @@ const womenPlace = result(900, {
   source_url: 'https://www.vsu.ru/',
   source_label: 'ВГУ',
 })
-async function mockData(page: Page, matches: Match[], results: PublicResult[]) {
-  await page.route('**/api/v1/matches?**', (route) => {
-    const query = new URL(route.request().url()).searchParams
-    const current = Number(query.get('page') || 1),
-      size = Number(query.get('page_size') || 100)
-    return route.fulfill({
-      json: {
-        items: matches.slice((current - 1) * size, current * size),
-        total: matches.length,
-        page: current,
-        page_size: size,
-        total_pages: Math.ceil(matches.length / size),
-      },
-    })
-  })
-  await page.route('**/api/v1/results-archive?**', (route) => {
-    const query = new URL(route.request().url()).searchParams
-    const current = Number(query.get('page') || 1),
-      size = Number(query.get('page_size') || 100)
-    return route.fulfill({
-      json: {
-        items: results.slice((current - 1) * size, current * size),
-        total: results.length,
-        page: current,
-        page_size: size,
-        total_pages: Math.ceil(results.length / size),
-      },
-    })
-  })
-  await page.route('**/api/v1/results-archive/summary', (route) =>
-    route.fulfill({
-      json: {
-        data: {
-          coverage: [
-            {
-              provider: 'asb',
-              team: 'men',
-              season: '2010-2011',
-              records: 0,
-              status: 'historical_identity_unverified',
-              source_url: 'https://asbasket.ru/',
-              note: 'Ранние данные не подтверждены.',
-            },
-            {
-              provider: 'fiba3x3',
-              team: 'women',
-              season: 'all',
-              records: 0,
-              status: 'upstream_unavailable',
-              source_url: 'https://play.fiba3x3.com/',
-              note: 'Источник временно недоступен.',
-            },
-          ],
-        },
-      },
-    }),
-  )
-}
 
 test('matches retain individual games and editor scores without tournament totals or sources', async ({
   page,
@@ -158,7 +101,17 @@ test('matches retain individual games and editor scores without tournament total
     opponent_name: 'Итог неизвестен',
     notes: 'Итог не опубликован в источнике.',
   })
-  await mockData(page, [fixture(1), upcoming], [result(1), womenPlace, unpublished])
+  // The server has already removed the duplicate archive citation and the
+  // tournament-only honour; the UI renders its authoritative mixed feed.
+  await mockCalendar(
+    page,
+    [
+      calendarItem(upcoming, { section: 'upcoming' }),
+      calendarItem(fixture(1)),
+      archiveItem(unpublished, { section: 'awaiting' }),
+    ],
+    { defaultSeason: '2026-2027' },
+  )
   await openPage(page, '/matches?team=all')
   await expect(page.getByRole('combobox', { name: 'Сезон', exact: true })).toContainText(
     '2026 / 2027',
@@ -202,7 +155,10 @@ test('pagination and filters survive reload, reset their page and restore with b
         : {},
     ),
   )
-  await mockData(page, matches, [...matches.map((_, index) => result(index + 1)), womenPlace])
+  await mockCalendar(
+    page,
+    matches.map((item) => calendarItem(item)),
+  )
   await openPage(page, '/matches?season=all&team=all')
   await expect(page.locator('article.match-card')).toHaveCount(24)
   await page.getByRole('button', { name: 'Дальше →', exact: true }).click()
@@ -239,19 +195,26 @@ test('default season is the latest published season when scheduled dates have al
     away_score: null,
     competition: { id: 'past', name: 'Кубок', season: '2026-2027', active: true },
   })
-  await mockData(
+  await mockCalendar(
     page,
-    [fixture(1), past],
     [
-      result(1),
-      {
-        ...womenPlace,
-        opponent_name: 'Соперник девушек',
-        club_score: 21,
-        opponent_score: 15,
-        place: null,
-      },
+      calendarItem(fixture(1)),
+      calendarItem(past, { section: 'awaiting' }),
+      archiveItem(
+        {
+          ...womenPlace,
+          opponent_name: 'Соперник девушек',
+          club_score: 21,
+          opponent_score: 15,
+          place: null,
+        },
+        { seasons: ['2022-2023', '2023-2024'] },
+      ),
     ],
+    {
+      defaultSeason: (url) =>
+        url.searchParams.get('discipline') === '3x3' ? '2023-2024' : '2025-2026',
+    },
   )
   await openPage(page, '/matches?team=all')
   await expect(page.locator('.match-filters__summary')).toContainText('Найдено: 1')
@@ -271,7 +234,7 @@ test('default season is the latest published season when scheduled dates have al
 test('old tournament links lead to club history rather than individual matches', async ({
   page,
 }) => {
-  await mockData(page, [], [womenPlace])
+  await mockCalendar(page, [])
   await openPage(page, '/results?team=women&season=2023&discipline=3x3')
   await expect(page).toHaveURL('/club?team=women&season=2023&discipline=3x3#club-tournaments')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('О клубе')
@@ -336,25 +299,28 @@ test('season filters use the July boundary, preserve explicit seasons and retain
       place: null,
       ...changes,
     })
-  await mockData(
-    page,
-    [old, julyInMoscow],
-    [
-      result(1, { year: 2024, season: '2023-2024', event_date: '2024-03-01' }),
-      dated(2, 'Июньский кубок 3×3', '2024-06-30'),
-      dated(3, 'Июльский кубок 3×3', '2024-07-01'),
-      dated(4, 'Турнир с явным сезоном', '2024-09-01', { season: '2023-2024' }),
+  await mockCalendar(page, [
+    calendarItem(old),
+    calendarItem(julyInMoscow, { season: '2024-2025' }),
+    archiveItem(dated(2, 'Июньский кубок 3×3', '2024-06-30'), { seasons: ['2023-2024'] }),
+    archiveItem(dated(3, 'Июльский кубок 3×3', '2024-07-01'), { seasons: ['2024-2025'] }),
+    archiveItem(dated(4, 'Турнир с явным сезоном', '2024-09-01', { season: '2023-2024' })),
+    archiveItem(
       dated(5, 'Фиджитал июня', '2024-06-01', {
         discipline: 'phygital',
         date_precision: 'month',
       }),
+      { seasons: ['2023-2024'] },
+    ),
+    archiveItem(
       dated(6, 'Фиджитал июля', '2024-07-01', {
         discipline: 'phygital',
         date_precision: 'month',
       }),
-      undated,
-    ],
-  )
+      { seasons: ['2024-2025'] },
+    ),
+    archiveItem(undated, { seasons: ['2023-2024', '2024-2025'] }),
+  ])
   await openPage(page, '/matches?season=2023-2024&team=all')
   await expect(page.locator('article.match-card')).toHaveCount(5)
   await expect(page.locator('.match-filters__summary')).toContainText('Найдено: 5')
@@ -407,7 +373,10 @@ test('legacy calendar-year URLs become canonical season filters while preserving
     event_date: '2025-07-01',
     tournament: 'Июль 2025',
   })
-  await mockData(page, [], [early, late])
+  await mockCalendar(page, [
+    archiveItem(early, { seasons: ['2024-2025'] }),
+    archiveItem(late, { seasons: ['2025-2026'] }),
+  ])
   await openPage(page, '/matches?year=2025&team=men&discipline=3x3&status=finished&page=2')
   await expect(page).toHaveURL('/matches?team=men&discipline=3x3&status=finished&season=2024-2025')
   await expect(page.getByRole('combobox', { name: 'Сезон', exact: true })).toContainText(

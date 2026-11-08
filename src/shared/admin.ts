@@ -14,10 +14,17 @@ export interface AdminField {
     | 'image'
   required?: boolean
   maxLength?: number
-  min?: number
-  max?: number
+  min?: number | string
+  max?: number | string
+  step?: number | 'any'
   hint?: string
   options?: { value: string; label: string }[]
+  onChange?: (form: Record<string, FormValue>, previous: FormValue) => void
+}
+export interface AdminFilter {
+  key: string
+  label: string
+  options: { value: string; label: string }[]
 }
 export interface AdminConfig {
   title: string
@@ -31,6 +38,18 @@ export interface AdminConfig {
   prepare?: (form: Record<string, FormValue>) => Record<string, unknown>
   publicPath?: string | ((row: AdminRecord) => string)
   publicLabel?: string
+  allowCreate?: boolean
+  allowDelete?: boolean
+  filters?: AdminFilter[]
+  refreshReferences?: () => Promise<void>
+  deleteWarning?: (row: AdminRecord) => string | Promise<string>
+  deleteImpact?: (row: AdminRecord) => string | Promise<string>
+  onChange?: (
+    key: string,
+    value: FormValue,
+    form: Record<string, FormValue>,
+    previous: FormValue,
+  ) => void
 }
 
 export const errorMessage = (error: unknown) =>

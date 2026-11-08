@@ -1,0 +1,16 @@
+[Unit]
+Description=Refresh verified Beavers public HTML
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Replace account, checkout, Node path and environment file before installation.
+User=beavers
+WorkingDirectory=/srv/beavers/frontend
+EnvironmentFile=/etc/beavers/prerender.env
+ExecStart=/usr/bin/node scripts/prerender-refresh.mjs
+# An intentional hard stop may leave the lock; see prerender-refresh.md.
+TimeoutStartSec=infinity
+NoNewPrivileges=true
+UMask=0027

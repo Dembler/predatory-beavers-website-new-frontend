@@ -6,13 +6,15 @@ import MatchCard from '@/components/MatchCard.vue'
 import RecentResults from '@/components/RecentResults.vue'
 import ClubHonours from '@/components/ClubHonours.vue'
 import { useLoad } from '@/composables/useLoad'
+import { useLiveRefresh } from '@/composables/useLiveRefresh'
 import { preferredTeamPath } from '@/composables/useTeamPreference'
 import { apiRequest } from '@/shared/api'
 import type { ApiResponse, HomeData } from '@/shared/types'
 
-const { data, pending, error, load } = useLoad(() =>
+const { data, pending, error, load, refresh, refreshing, refreshError } = useLoad(() =>
   apiRequest<ApiResponse<HomeData>>('/api/v1/home'),
 )
+useLiveRefresh(refresh)
 const home = computed(() => data.value?.data)
 const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recent_results[0])
 </script>
@@ -61,6 +63,12 @@ const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recen
             </div>
             <RouterLink class="text-link" to="/matches">Все матчи <span>→</span></RouterLink>
           </div>
+          <p v-if="refreshError" class="live-refresh-note" role="status">
+            Не удалось обновить данные. Показана последняя загруженная версия.
+            <button type="button" :disabled="refreshing" @click="refresh">
+              {{ refreshing ? 'Обновляем…' : 'Обновить' }}
+            </button>
+          </p>
           <AsyncState
             :pending="pending"
             :error="error"

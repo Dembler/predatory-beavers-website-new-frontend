@@ -1,35 +1,34 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import MatchCard from '@/components/MatchCard.vue'
 import HistoricalMatchCard from '@/components/HistoricalMatchCard.vue'
 import { useLoad } from '@/composables/useLoad'
+import { useLiveRefresh } from '@/composables/useLiveRefresh'
 import { useTeamFilter } from '@/composables/useTeamPreference'
-import { allPages } from '@/shared/api'
-import { explicitSeason, resultSeasons, seasonAtDate, type PublicResult } from '@/shared/results'
-import type { Match } from '@/shared/types'
+import { apiRequest } from '@/shared/api'
+import { explicitSeason } from '@/shared/results'
+import type { CalendarEntry, CalendarPage, CalendarSection } from '@/shared/calendar'
 
 const route = useRoute()
 const router = useRouter()
 const rememberedTeam = useTeamFilter('all')
 function updateQuery(values: Record<string, string | undefined>) {
-  void router.push({ query: { ...route.query, page: undefined, ...values } })
+  void router.push({ query: { ...route.query, page: undefined, at: undefined, ...values } })
 }
 const team = computed({
   get: () => rememberedTeam.value,
   set: (value: 'all' | 'men' | 'women') => updateQuery({ team: value }),
 })
-function queryFilter(name: string, allowed?: string[]) {
+function queryFilter(name: string, allowed: string[]) {
   return computed({
     get: () => {
       const value = route.query[name]
-      return typeof value === 'string' && (!allowed || allowed.includes(value)) ? value : 'all'
+      return typeof value === 'string' && allowed.includes(value) ? value : 'all'
     },
-    set: (value: string) => {
-      updateQuery({ [name]: value === 'all' ? undefined : value })
-    },
+    set: (value: string) => updateQuery({ [name]: value === 'all' ? undefined : value }),
   })
 }
 const legacyYearSeason = (value: unknown) =>
@@ -41,10 +40,6 @@ const querySeason = computed(() => {
   const value = typeof route.query.season === 'string' ? route.query.season : undefined
   return explicitSeason(value) ?? legacyYearSeason(value) ?? legacyYearSeason(route.query.year)
 })
-const season = computed({
-  get: () => querySeason.value ?? defaultSeason.value,
-  set: (value: string) => updateQuery({ season: value, year: undefined }),
-})
 watch(
   () => [route.query.season, route.query.year],
   () => {
@@ -53,7 +48,13 @@ watch(
       (route.query.season !== undefined && route.query.season !== querySeason.value)
     )
       void router.replace({
-        query: { ...route.query, season: querySeason.value, year: undefined, page: undefined },
+        query: {
+          ...route.query,
+          season: querySeason.value,
+          year: undefined,
+          page: undefined,
+          at: undefined,
+        },
         hash: route.hash,
       })
   },
@@ -68,14 +69,60 @@ const status = queryFilter('status', [
   'cancelled',
   'unpublished',
 ])
-const now = ref(Date.now())
-let clockTimer: number | undefined
-onMounted(() => {
-  clockTimer = window.setInterval(() => {
-    now.value = Date.now()
-  }, 30_000)
+const requestedPage = computed(() => {
+  const value = route.query.page
+  return typeof value === 'string' && /^[1-9]\d{0,6}$/u.test(value) ? Number(value) : 1
 })
-onUnmounted(() => window.clearInterval(clockTimer))
+const snapshotTime = computed(() => {
+  const value = route.query.at
+  return typeof value === 'string' && Number.isFinite(Date.parse(value))
+    ? new Date(value).toISOString()
+    : undefined
+})
+const requestPath = computed(() => {
+  const query = new URLSearchParams({ page: String(requestedPage.value), page_size: '24' })
+  if (team.value !== 'all') query.set('team', team.value)
+  if (discipline.value !== 'all') query.set('discipline', discipline.value)
+  if (status.value !== 'all') query.set('status', status.value)
+  if (querySeason.value) query.set('season', querySeason.value)
+  if (snapshotTime.value) query.set('at', snapshotTime.value)
+  return `/api/v1/calendar?${query}`
+})
+const calendar = useLoad(() => apiRequest<CalendarPage>(requestPath.value), [requestPath])
+watch(calendar.data, (result) => {
+  if (result && result.page !== requestedPage.value)
+    void router.replace({
+      query: { ...route.query, page: result.page === 1 ? undefined : String(result.page) },
+      hash: route.hash,
+    })
+})
+async function refreshCalendar() {
+  // A pagination timestamp keeps date boundaries stable. A live refresh starts a fresh snapshot.
+  if (snapshotTime.value) {
+    await router.replace({ query: { ...route.query, at: undefined } })
+    await nextTick()
+  }
+  await calendar.refresh()
+}
+useLiveRefresh(refreshCalendar)
+const defaultSeason = computed(() => calendar.data.value?.default_season ?? 'all')
+const season = computed({
+  get: () => querySeason.value ?? calendar.data.value?.selected_season ?? defaultSeason.value,
+  set: (value: string) => updateQuery({ season: value, year: undefined }),
+})
+const seasonLabel = (value: string) =>
+  value === 'unknown' ? 'Сезон не уточнён' : value.replace('-', ' / ')
+const seasonOptions = computed(() => {
+  const values = new Set(calendar.data.value?.seasons ?? [])
+  if (season.value !== 'all') values.add(season.value)
+  return [
+    { value: 'all', label: 'Все сезоны' },
+    ...Array.from(values)
+      .sort()
+      .reverse()
+      .map((value) => ({ value, label: seasonLabel(value) })),
+  ]
+})
 const hasFilters = computed(
   () =>
     team.value !== 'all' ||
@@ -106,197 +153,57 @@ const disciplineOptions = [
   { value: '3x3', label: '3×3 — на одно кольцо' },
   { value: 'phygital', label: 'Фиджитал-баскетбол' },
 ]
-const calendar = useLoad(() => allPages<Match>('/api/v1/matches'))
-const history = useLoad(() => allPages<PublicResult>('/api/v1/results-archive'))
-const matches = computed(() => calendar.data.value ?? [])
-const historical = computed(() =>
-  (history.data.value ?? []).filter((item) => Boolean(item.opponent_name)),
-)
-const loading = computed(() => calendar.pending.value || history.pending.value)
-const pending = computed(() => loading.value && !matches.value.length && !historical.value.length)
-const error = computed(() => calendar.error.value && history.error.value)
-async function load() {
-  await Promise.all([calendar.load(), history.load()])
-}
-
-// Public source identities connect the calendar copy to the historical evidence.
-// Prefer the calendar card, including editor changes; never repeat an imported ASB game.
-const identity = (item: { source?: string; external_id?: string | null }) =>
-  item.source && item.external_id ? `${item.source}/${item.external_id}` : null
-const calendarIdentities = computed(() => new Set(matches.value.map(identity).filter(Boolean)))
-const additional = computed(() =>
-  historical.value.filter((item) => !calendarIdentities.value.has(identity(item))),
-)
-const startTime = (match: Match) => new Date(match.starts_at).getTime()
-const matchSeason = (match: Match) =>
-  explicitSeason(match.competition.season) ?? seasonAtDate(match.starts_at)
-const seasonLabel = (value: string) =>
-  value === 'unknown' ? 'Сезон не уточнён' : value.replace('-', ' / ')
-const defaultSeason = computed(() => {
-  if (discipline.value === 'all' || discipline.value === '5x5') {
-    const next = matches.value
-      .filter(
-        (match) =>
-          (team.value === 'all' || match.team?.category === team.value) &&
-          (match.status === 'live' ||
-            (match.status === 'scheduled' && startTime(match) >= now.value)),
-      )
-      .sort((a, b) => startTime(a) - startTime(b))[0]
-    if (next && matchSeason(next)) return matchSeason(next)!
-    const published = [
-      ...matches.value
-        .filter(
-          (match) =>
-            match.status === 'finished' &&
-            (team.value === 'all' || match.team?.category === team.value),
-        )
-        .map(matchSeason)
-        .filter((value): value is string => Boolean(value)),
-      ...historical.value
-        .filter(
-          (item) =>
-            item.discipline === '5x5' &&
-            item.status === 'finished' &&
-            (team.value === 'all' || item.team === team.value) &&
-            resultSeasons(item).length === 1,
-        )
-        .flatMap(resultSeasons),
-    ]
-      .sort()
-      .reverse()[0]
-    if (published) return published
+const total = computed(() => calendar.data.value?.total ?? 0)
+const totalPages = computed(() => calendar.data.value?.total_pages || 1)
+const page = computed(() => calendar.data.value?.page ?? requestedPage.value)
+const groups = computed(() => {
+  const labels: Record<CalendarSection, string> = {
+    upcoming: 'Ближайшие',
+    changed: 'Изменения в расписании',
+    results: 'Сыгранные матчи',
+    awaiting: 'Счёт уточняется',
   }
-  return (
-    historical.value
-      .filter(
-        (item) =>
-          (discipline.value === 'all' || item.discipline === discipline.value) &&
-          (team.value === 'all' || item.team === team.value),
-      )
-      .flatMap(resultSeasons)
-      .sort()
-      .reverse()[0] ?? 'all'
-  )
+  return (Object.keys(labels) as CalendarSection[])
+    .map((section) => {
+      const entries = (calendar.data.value?.items ?? []).filter((item) => item.section === section)
+      const seasons = new Map<string, CalendarEntry[]>()
+      for (const entry of entries) {
+        const name = section === 'results' ? entry.season : ''
+        if (!seasons.has(name)) seasons.set(name, [])
+        seasons.get(name)!.push(entry)
+      }
+      return {
+        section,
+        label: labels[section],
+        entries,
+        count: calendar.data.value?.counts[section] ?? 0,
+        seasons: Array.from(seasons, ([name, items]) => ({ name, items })),
+      }
+    })
+    .filter((group) => group.entries.length)
 })
-const seasonOptions = computed(() => {
-  const values = new Set<string>()
-  for (const match of matches.value)
-    if (discipline.value === 'all' || discipline.value === '5x5')
-      if (matchSeason(match)) values.add(matchSeason(match)!)
-  for (const item of historical.value)
-    if (discipline.value === 'all' || item.discipline === discipline.value)
-      resultSeasons(item).forEach((value) => values.add(value))
-  if (season.value !== 'all') values.add(season.value)
-  return [
-    { value: 'all', label: 'Все сезоны' },
-    ...Array.from(values)
-      .sort()
-      .reverse()
-      .map((value) => ({ value, label: seasonLabel(value) })),
-  ]
-})
-const filtered = computed(() =>
-  matches.value.filter(
-    (match) =>
-      (discipline.value === 'all' || discipline.value === '5x5') &&
-      (team.value === 'all' || match.team?.category === team.value) &&
-      (status.value === 'all' || match.status === status.value) &&
-      (season.value === 'all' || matchSeason(match) === season.value),
-  ),
-)
-const filteredAdditional = computed(() =>
-  additional.value.filter(
-    (item) =>
-      (discipline.value === 'all' || item.discipline === discipline.value) &&
-      (team.value === 'all' || item.team === team.value) &&
-      (status.value === 'all' || item.status === status.value) &&
-      (season.value === 'all' || resultSeasons(item).includes(season.value)),
-  ),
-)
-const total = computed(() => filtered.value.length + filteredAdditional.value.length)
-const statusRank = (match: Match) =>
-  match.status === 'live' ? 0 : match.status === 'scheduled' ? 1 : 2
-const upcoming = computed(() =>
-  filtered.value
-    .filter(
-      (match) =>
-        match.status === 'live' || (match.status === 'scheduled' && startTime(match) >= now.value),
-    )
-    .slice()
-    .sort((a, b) => statusRank(a) - statusRank(b) || startTime(a) - startTime(b)),
-)
-const changed = computed(() =>
-  filtered.value
-    .filter((match) => !['live', 'scheduled', 'finished'].includes(match.status))
-    .slice()
-    .sort((a, b) => startTime(b) - startTime(a)),
-)
-const awaitingResult = computed(() =>
-  filtered.value
-    .filter((match) => match.status === 'scheduled' && startTime(match) < now.value)
-    .slice()
-    .sort((a, b) => startTime(b) - startTime(a)),
-)
-const awaitingHistorical = computed(() =>
-  filteredAdditional.value.filter((item) => !['finished', 'participated'].includes(item.status)),
-)
-type ResultEntry = {
-  key: string
-  season: string
-  timestamp: number
-  match?: Match
-  result?: PublicResult
-}
-const results = computed<ResultEntry[]>(() =>
-  [
-    ...filtered.value
-      .filter((match) => match.status === 'finished')
-      .map((match) => ({
-        key: `match-${match.id}`,
-        season: matchSeason(match) ?? 'unknown',
-        timestamp: startTime(match),
-        match,
-      })),
-    ...filteredAdditional.value
-      .filter((item) => ['finished', 'participated'].includes(item.status))
-      .map((result) => ({
-        key: `result-${result.id}`,
-        season:
-          resultSeasons(result).length === 1
-            ? resultSeasons(result)[0]!
-            : season.value === 'all'
-              ? 'unknown'
-              : season.value,
-        timestamp: new Date(result.event_date ?? `${result.year}-01-01`).getTime(),
-        result,
-      })),
-  ].sort((a, b) => b.timestamp - a.timestamp || a.key.localeCompare(b.key)),
-)
-const totalPages = computed(() => Math.max(1, Math.ceil(results.value.length / 24)))
-const page = computed(() =>
-  Math.min(totalPages.value, Math.max(1, Number.parseInt(String(route.query.page), 10) || 1)),
-)
+const shownFrom = computed(() => (page.value - 1) * 24 + 1)
+const shownTo = computed(() => Math.min(total.value, page.value * 24))
 function changePage(value: number) {
-  void router.push({ query: { ...route.query, page: value === 1 ? undefined : String(value) } })
-  document.getElementById('match-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (value < 1 || value > totalPages.value || calendar.pending.value) return
+  void router.push({
+    query: {
+      ...route.query,
+      season: season.value,
+      at: calendar.data.value?.at,
+      page: value === 1 ? undefined : String(value),
+    },
+  })
+  document
+    .getElementById('calendar-results')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
-const resultGroups = computed(() => {
-  const groups = new Map<string, ResultEntry[]>()
-  for (const item of results.value.slice((page.value - 1) * 24, page.value * 24)) {
-    if (!groups.has(item.season)) groups.set(item.season, [])
-    groups.get(item.season)!.push(item)
-  }
-  return Array.from(groups, ([name, items]) => ({ name, items }))
-})
-const hasVisibleMatches = computed(() => total.value > 0)
 </script>
 
 <template>
   <div class="matches-page">
     <section class="page-hero page-hero--compact">
-      <div class="container">
-        <h1>Матчи</h1>
-      </div>
+      <div class="container"><h1>Матчи</h1></div>
     </section>
     <section class="section section--light">
       <div class="container">
@@ -306,7 +213,7 @@ const hasVisibleMatches = computed(() => total.value > 0)
           <AppSelect v-model="discipline" label="Формат игры" :options="disciplineOptions" />
           <AppSelect v-model="status" label="Статус" :options="statusOptions" />
           <p class="match-filters__summary" aria-live="polite">
-            Найдено: {{ loading ? '…' : total }}
+            Найдено: {{ calendar.pending.value ? '…' : total }}
           </p>
           <button
             v-if="hasFilters"
@@ -317,57 +224,57 @@ const hasVisibleMatches = computed(() => total.value > 0)
             Сбросить фильтры
           </button>
         </div>
-        <p
-          v-if="!error && (calendar.error.value || history.error.value)"
-          class="match-load-note"
-          role="status"
-        >
-          Часть данных не удалось загрузить.
-          <button type="button" @click="load">Повторить загрузку</button>
+        <p v-if="calendar.refreshError.value" class="live-refresh-note" role="status">
+          Не удалось обновить расписание. Показана последняя загруженная версия.
+          <button type="button" :disabled="calendar.refreshing.value" @click="refreshCalendar">
+            {{ calendar.refreshing.value ? 'Обновляем…' : 'Обновить' }}
+          </button>
         </p>
-        <AsyncState
-          :pending="pending"
-          :error="error"
-          :empty="!hasVisibleMatches"
-          empty-text="По выбранным фильтрам матчей нет."
-          @retry="load"
-        >
-          <section v-if="upcoming.length" class="match-group">
-            <div class="match-group__heading">
-              <h2>Ближайшие</h2>
-              <span>{{ upcoming.length }}</span>
-            </div>
-            <div class="match-list">
-              <MatchCard v-for="match in upcoming" :key="match.id" :match="match" variant="row" />
-            </div>
-          </section>
-          <section v-if="changed.length" class="match-group">
-            <div class="match-group__heading">
-              <h2>Изменения в расписании</h2>
-              <span>{{ changed.length }}</span>
-            </div>
-            <div class="match-list">
-              <MatchCard v-for="match in changed" :key="match.id" :match="match" variant="row" />
-            </div>
-          </section>
-          <section v-if="results.length" id="match-results" class="match-group">
-            <div class="match-group__heading">
-              <h2>Сыгранные матчи</h2>
-              <span>{{ results.length }}</span>
-            </div>
-            <div class="match-seasons">
-              <section v-for="group in resultGroups" :key="group.name" class="match-season">
-                <h3 v-if="season === 'all'" class="match-season__heading">
-                  {{ seasonLabel(group.name) }}
-                </h3>
-                <div class="match-list">
-                  <template v-for="entry in group.items" :key="entry.key">
-                    <MatchCard v-if="entry.match" :match="entry.match" variant="row" />
-                    <HistoricalMatchCard v-else-if="entry.result" :result="entry.result" />
-                  </template>
-                </div>
-              </section>
-            </div>
+        <div id="calendar-results">
+          <AsyncState
+            :pending="calendar.pending.value"
+            :error="calendar.error.value"
+            :empty="!total"
+            empty-text="По выбранным фильтрам матчей нет."
+            @retry="calendar.load"
+          >
+            <p v-if="totalPages > 1" class="calendar-range" aria-live="polite">
+              Показаны {{ shownFrom }}–{{ shownTo }} из {{ total }}. Разделы продолжаются на
+              следующих страницах.
+            </p>
+            <section
+              v-for="group in groups"
+              :key="group.section"
+              class="match-group"
+              :class="{ 'match-group--awaiting-result': group.section === 'awaiting' }"
+            >
+              <div class="match-group__heading">
+                <h2>{{ group.label }}</h2>
+                <span>{{ group.count }}</span>
+              </div>
+              <p v-if="group.section === 'awaiting'" class="match-group__explanation">
+                Официальный результат пока не опубликован.
+              </p>
+              <div class="match-seasons">
+                <section v-for="part in group.seasons" :key="part.name" class="match-season">
+                  <h3
+                    v-if="group.section === 'results' && season === 'all'"
+                    class="match-season__heading"
+                  >
+                    {{ seasonLabel(part.name) }}
+                  </h3>
+                  <div class="match-list">
+                    <template
+                      v-for="entry in part.items"
+                      :key="`${entry.kind}-${entry.match?.id ?? entry.result?.id}`"
+                    >
+                      <MatchCard v-if="entry.match" :match="entry.match" variant="row" />
+                      <HistoricalMatchCard v-else-if="entry.result" :result="entry.result" />
+                    </template>
+                  </div>
+                </section>
+              </div>
+            </section>
             <nav v-if="totalPages > 1" class="match-pagination" aria-label="Страницы матчей">
               <button type="button" :disabled="page === 1" @click="changePage(page - 1)">
                 ← Назад
@@ -377,31 +284,8 @@ const hasVisibleMatches = computed(() => total.value > 0)
                 Дальше →
               </button>
             </nav>
-          </section>
-          <section
-            v-if="awaitingResult.length || awaitingHistorical.length"
-            class="match-group match-group--awaiting-result"
-          >
-            <div class="match-group__heading">
-              <h2>Счёт уточняется</h2>
-              <span>{{ awaitingResult.length + awaitingHistorical.length }}</span>
-            </div>
-            <p class="match-group__explanation">Официальный результат пока не опубликован.</p>
-            <div class="match-list">
-              <MatchCard
-                v-for="match in awaitingResult"
-                :key="match.id"
-                :match="match"
-                variant="row"
-              />
-              <HistoricalMatchCard
-                v-for="result in awaitingHistorical"
-                :key="result.id"
-                :result="result"
-              />
-            </div>
-          </section>
-        </AsyncState>
+          </AsyncState>
+        </div>
       </div>
     </section>
   </div>
@@ -450,19 +334,11 @@ const hasVisibleMatches = computed(() => total.value > 0)
   outline: 3px solid #4d82b2;
   outline-offset: 3px;
 }
-.match-load-note {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+.calendar-range {
+  margin: 0 0 28px;
+  color: #52677b;
+  font-size: 0.85rem;
   line-height: 1.6;
-}
-.match-load-note button {
-  min-height: 44px;
-  border: 0;
-  background: transparent;
-  text-decoration: underline;
-  color: var(--navy);
-  cursor: pointer;
 }
 .match-seasons {
   display: grid;
@@ -486,7 +362,7 @@ const hasVisibleMatches = computed(() => total.value > 0)
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
-#match-results {
+#calendar-results {
   scroll-margin-top: 140px;
 }
 .match-pagination {

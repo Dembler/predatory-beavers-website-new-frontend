@@ -5,6 +5,7 @@ import AsyncState from '@/components/AsyncState.vue'
 import { useLoad } from '@/composables/useLoad'
 import { preferredTeamPath, rememberTeam } from '@/composables/useTeamPreference'
 import { ApiError, apiRequest, mediaUrl } from '@/shared/api'
+import { setMetadata, setPageIdentity } from '@/shared/pageMetadata'
 import type { ApiResponse, Player } from '@/shared/types'
 
 const route = useRoute()
@@ -25,6 +26,25 @@ const { data, pending, error, load } = useLoad(async () => {
   }
 }, [() => route.params.id])
 const player = computed(() => data.value?.data)
+watch(
+  [player, pending, error, () => route.fullPath],
+  ([current, loading, failed]) => {
+    const published = current && current.id === route.params.id && current.active !== false
+    setMetadata(
+      'name',
+      'robots',
+      published && !loading && !failed ? 'index, follow' : 'noindex, follow',
+    )
+    if (!published || loading || failed) return
+    setPageIdentity(
+      `${current.full_name} — БК ВГУ «Хищные Бобры»`,
+      `${current.full_name}: клубный профиль игрока, фотография и история от команды БК ВГУ «Хищные Бобры».`,
+    )
+  },
+  // The router installs generic metadata after each navigation, including query
+  // changes. Apply the loaded profile identity after that navigation completes.
+  { immediate: true, flush: 'post' },
+)
 watch(() => player.value?.team.category, rememberTeam)
 </script>
 
@@ -32,6 +52,7 @@ watch(() => player.value?.team.category, rememberTeam)
   <div class="local-player-page">
     <section class="page-hero page-hero--compact">
       <div class="container">
+        <p class="eyebrow">Клубный профиль</p>
         <h1>{{ player?.full_name || 'Игрок команды' }}</h1>
         <RouterLink
           class="profile-back"

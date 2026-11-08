@@ -6,10 +6,11 @@ import PlayerAverages from '@/components/PlayerAverages.vue'
 import { useLoad } from '@/composables/useLoad'
 import { rememberTeam } from '@/composables/useTeamPreference'
 import { ApiError, apiRequest } from '@/shared/api'
+import { setMetadata, setPageIdentity } from '@/shared/pageMetadata'
 import type { ApiResponse } from '@/shared/types'
 import { initials, seasonLabel, type AsbPlayerProfile } from '@/shared/roster'
 const route = useRoute()
-const category = computed(() => (route.query.team === 'women' ? 'women' : 'men'))
+const category = computed(() => (route.params.category === 'women' ? 'women' : 'men'))
 const brokenPhoto = ref(false)
 watch(
   () => route.params.id,
@@ -29,7 +30,29 @@ const { data, pending, error, load } = useLoad(async () => {
   }
 }, [() => route.params.id, category])
 const profile = computed(() => data.value?.data)
-const player = computed(() => (profile.value?.is_current_season ? profile.value.player : null))
+const player = computed(() =>
+  profile.value?.is_current_season && profile.value.status === 'published'
+    ? profile.value.player
+    : null,
+)
+watch(
+  [player, pending, error, () => route.fullPath],
+  ([current, loading, failed]) => {
+    const published =
+      current && current.id === route.params.id && profile.value?.team === category.value
+    setMetadata(
+      'name',
+      'robots',
+      published && !loading && !failed ? 'index, follow' : 'noindex, follow',
+    )
+    if (!published || loading || failed) return
+    setPageIdentity(
+      `${current.full_name} — БК ВГУ «Хищные Бобры»`,
+      `${current.full_name}: профиль игрока в опубликованной заявке АСБ, статистика и официальные источники. БК ВГУ «Хищные Бобры».`,
+    )
+  },
+  { immediate: true, flush: 'post' },
+)
 watch(category, rememberTeam, { immediate: true })
 </script>
 <template>

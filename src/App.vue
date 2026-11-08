@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
-import IntroReveal from '@/components/IntroReveal.vue'
 import { useRoute } from 'vue-router'
 import { preferredTeamPath } from '@/composables/useTeamPreference'
 
@@ -50,6 +49,12 @@ const updateHeader = () => {
 }
 const updateViewport = () => {
   if (!mobileViewport?.matches) menuOpen.value = false
+}
+function toggleMobileMenu(event: MouseEvent) {
+  // WebKit does not focus a button on pointer activation. Give the native
+  // dialog an opener to restore focus to when it closes.
+  if (!menuOpen.value) (event.currentTarget as HTMLElement).focus({ preventScroll: true })
+  menuOpen.value = !menuOpen.value
 }
 function closeBackdrop(event: MouseEvent) {
   if (event.target !== mobileMenu.value) return
@@ -134,18 +139,8 @@ function bottomActive(to: string) {
 <template>
   <div class="site-shell" :class="{ 'site-shell--admin': route.path === '/admin' }">
     <a class="skip-link" href="#main-content">Перейти к содержимому</a>
-    <IntroReveal />
-    <img class="screen-claw screen-claw--right" src="/images/kogti.png" alt="" aria-hidden="true" />
-    <img
-      class="screen-claw screen-claw--left"
-      src="/images/kogtiniz.png"
-      alt=""
-      aria-hidden="true"
-    />
-
     <header ref="siteHeader" class="site-header" :class="{ 'site-header--compact': headerCompact }">
       <div class="nav-shell">
-        <span class="nav-shell__glow" aria-hidden="true"></span>
         <RouterLink class="wordmark" to="/" aria-label="Хищные Бобры — главная">
           <span class="wordmark__mark" aria-hidden="true">
             <img src="/images/brand/club-emblem.webp" alt="" />
@@ -159,7 +154,7 @@ function bottomActive(to: string) {
           :aria-expanded="menuOpen"
           :aria-label="menuOpen ? 'Закрыть меню' : 'Открыть меню'"
           aria-controls="mobile-navigation"
-          @click="menuOpen = !menuOpen"
+          @click="toggleMobileMenu"
         >
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M4 6h16M4 12h16M4 18h16" />
@@ -203,10 +198,6 @@ function bottomActive(to: string) {
             {{ link.label }}
           </RouterLink>
         </nav>
-
-        <RouterLink class="nav-cta" to="/matches">
-          <span class="nav-cta__label">Матчи</span><span aria-hidden="true">→</span>
-        </RouterLink>
       </div>
     </header>
 
@@ -292,7 +283,7 @@ function bottomActive(to: string) {
         aria-label="Меню — все разделы"
         aria-controls="mobile-navigation"
         :aria-expanded="menuOpen"
-        @click="menuOpen = !menuOpen"
+        @click="toggleMobileMenu"
       >
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M4 6h16M4 12h16M4 18h16" /></svg

@@ -10,22 +10,30 @@
     "dev": "vite",
     "build": "run-p type-check build-only",
     "build-only": "vite build",
+    "build:prerender": "npm run type-check && node scripts/prerender.mjs",
+    "refresh:prerender": "node scripts/prerender-refresh.mjs",
+    "test:prerender": "node --test scripts/prerender.test.mjs scripts/prerender-refresh.test.mjs",
+    "verify:prerender": "node scripts/verify-prerender.mjs",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:e2e:public": "playwright test public.spec.ts matches.spec.ts navigation.spec.ts standings.spec.ts playoff-bracket.spec.ts match-dates.spec.ts match-outcomes.spec.ts archive.spec.ts landing.spec.ts honours-roster.spec.ts tournament-history.spec.ts",
-    "test:e2e:admin": "playwright test admin.spec.ts",
+    "test:e2e:public": "playwright test public.spec.ts matches.spec.ts navigation.spec.ts standings.spec.ts playoff-bracket.spec.ts match-dates.spec.ts match-outcomes.spec.ts archive.spec.ts landing.spec.ts honours-roster.spec.ts tournament-history.spec.ts calendar-server.spec.ts profile-metadata.spec.ts",
+    "test:e2e:admin": "playwright test admin.spec.ts admin-workflows.spec.ts admin-editor-races.spec.ts",
     "test:e2e:report": "playwright show-report .data/playwright-report",
     "type-check": "vue-tsc --build",
-    "api:generate": "openapi-typescript http://localhost:8000/openapi.json -o src/shared/api/schema.d.ts",
+    "api:generate": "node scripts/generate_api.mjs",
     "lint": "eslint . --fix --cache",
     "lint:ci": "eslint . --max-warnings=0",
     "format": "prettier --write \"src/**/*.{ts,vue,css,json,md}\" \"*.{ts,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,vue,css,json,md}\" \"*.{ts,json,md}\""
   },
   "dependencies": {
-    "pinia": "^3.0.4",
     "vue": "^3.5.26",
     "vue-router": "^4.6.4"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

@@ -26,6 +26,87 @@ const context = {
   notice: 'Отдельные показатели АСБ ещё не опубликованы.',
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/players?**', (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 24, total_pages: 0 } }),
+  )
+})
+
+test('ASB and club profiles with the same UUID keep separate routes, including shared legacy links', async ({
+  page,
+}) => {
+  const local = {
+    id: player.id,
+    full_name: 'Клубный игрок с тем же UUID',
+    position: 'Защитник',
+    age_text: null,
+    fact: 'История игрока от клуба',
+    photo: null,
+    team: { id: 'local-men', category: 'men', name: 'Хищные Бобры', slug: 'men', logo: null },
+  }
+  await page.route(`**/api/v1/players/${player.id}`, (route) =>
+    route.fulfill({ json: { data: local } }),
+  )
+  await page.route(`**/api/v1/asb-roster/men/players/${player.id}`, (route) =>
+    route.fulfill({ json: { data: { ...context, player } } }),
+  )
+  await openPage(page, `/teams/men/players/${player.id}`)
+  await expect(page.locator('main h1')).toHaveText(player.full_name)
+  await expect(page).toHaveTitle(`${player.full_name} — БК ВГУ «Хищные Бобры»`)
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    'content',
+    `${player.full_name} — БК ВГУ «Хищные Бобры»`,
+  )
+  await page.goto(`/players/local/${player.id}`)
+  await expect(page.locator('main h1')).toHaveText(local.full_name)
+  await expect(page).toHaveTitle(`${local.full_name} — БК ВГУ «Хищные Бобры»`)
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    /клубный профиль игрока/,
+  )
+  await page.goto(`/players/${player.id}?team=men`)
+  await expect(page).toHaveURL(new RegExp(`/teams/men/players/${player.id}$`))
+  await expect(page.locator('main h1')).toHaveText(player.full_name)
+  await page.goto(`/players/${player.id}`)
+  await expect(page).toHaveURL(new RegExp(`/players/local/${player.id}$`))
+  await expect(page.locator('main h1')).toHaveText(local.full_name)
+})
+
+test('published club profiles remain discoverable when ASB is unavailable and never imply official membership', async ({
+  page,
+}) => {
+  const local = {
+    id: '99999999-9999-4999-8999-999999999999',
+    full_name: 'Игрок из редакционной формы',
+    position: 'Центровой',
+    age_text: null,
+    fact: 'Клубная история',
+    photo: null,
+    team: { id: 'local-women', category: 'women', name: 'Хищные Бобры', slug: 'women', logo: null },
+  }
+  await page.route('**/api/v1/asb-roster/women', (route) => route.abort('failed'))
+  await page.route('**/api/v1/players?**', (route) =>
+    route.fulfill({ json: { items: [local], total: 1, page: 1, page_size: 24, total_pages: 1 } }),
+  )
+  await page.route(`**/api/v1/players/${local.id}`, (route) =>
+    route.fulfill({ json: { data: local } }),
+  )
+  await openPage(page, '/teams/women')
+  const profiles = page.getByRole('region', { name: 'Клубные профили', exact: true })
+  await expect(profiles).toBeVisible()
+  await expect(profiles).toContainText(
+    'Участие в официальной заявке АСБ указано в отдельном составе выше.',
+  )
+  await expect(page.locator('.roster-player')).toHaveCount(0)
+  await profiles.getByRole('link', { name: /Игрок из редакционной формы/ }).click()
+  await expect(page.locator('main h1')).toHaveText(local.full_name)
+  await expect(page.locator('.local-player-profile__story')).toHaveText(local.fact)
+  await page.locator('.profile-back').click()
+  await expect(page).toHaveURL(/\/teams\/women$/)
+  await expect(profiles.getByRole('link', { name: /Игрок из редакционной формы/ })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+})
+
 test('current roster shows official photo and averages, preserving zero and unknown separately', async ({
   page,
 }) => {
@@ -43,7 +124,7 @@ test('current roster shows official photo and averages, preserving zero and unkn
   await expect(page.locator('.roster-player__stats-season')).toHaveText('Статистика 2026 / 2027')
   await expect(page.locator('.roster-heading > a')).toHaveAttribute('href', context.source_url)
   await page.getByRole('link', { name: /Тестовый игрок/ }).click()
-  await expect(page).toHaveURL(/players\/.+\?team=men/)
+  await expect(page).toHaveURL(new RegExp(`/teams/men/players/${player.id}$`))
   await expect(page.locator('main h1')).toHaveText('Тестовый игрок')
   await expect(page.locator('.player-averages dd')).toHaveText(['14,2', '0', '—', '21:30'])
   await expect(page.locator('.asb-player-profile__season')).toHaveText('В заявке 2026 / 2027')
@@ -105,7 +186,7 @@ test('historical averages keep the current roster and identify a separate statis
   await expect(page.locator('.roster-explainer')).toHaveCount(0)
   await assertNoHorizontalOverflow(page)
   await page.locator('.roster-player').first().click()
-  await expect(page).toHaveURL(new RegExp(`/players/${player.id}\\?team=men$`))
+  await expect(page).toHaveURL(new RegExp(`/teams/men/players/${player.id}$`))
   await expect(page.locator('main h1')).toHaveText(player.full_name)
   await expect(page.locator('.asb-player-profile__season')).toHaveText('В заявке 2026 / 2027')
   await expect(page.locator('.asb-player-profile__statistics-season')).toHaveText(
@@ -221,7 +302,7 @@ test('an unpublished current roster never substitutes last season players', asyn
     }),
   )
   await openPage(page, '/teams/men')
-  await expect(page.getByRole('status')).toContainText('ещё не опубликована')
+  await expect(page.locator('.roster-waiting')).toContainText('ещё не опубликована')
   await expect(page.locator('.roster-player')).toHaveCount(0)
   await expect(page.getByText('Тестовый игрок', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Проверить заявку на АСБ ↗' })).toHaveAttribute(

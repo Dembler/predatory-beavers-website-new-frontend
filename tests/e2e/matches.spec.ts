@@ -1,13 +1,189 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import type { Match, Media } from '../../src/shared/types'
-import { assertNoHorizontalOverflow, mockEmptyHistoricalResults, openPage } from './helpers'
+import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { calendarItem, mockCalendar } from './calendar-fixtures'
 
-test.beforeEach(async ({ page }) => {
-  await mockEmptyHistoricalResults(page)
+test('calendar failure offers a working retry and never falls back to downloading full history', async ({
+  page,
+}) => {
+  const requested = await mockCalendar(page, [])
+  let attempts = 0
+  const rawRequests: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/v1\/(matches|results-archive)(\?|$)/u.test(request.url()))
+      rawRequests.push(request.url())
+  })
+  await page.route('**/api/v1/calendar?**', (route) => {
+    attempts++
+    return attempts === 1
+      ? route.fulfill({ status: 503, json: { detail: 'Temporary failure' } })
+      : route.fallback()
+  })
+  await openPage(page, '/matches?season=all')
+  await expect(page.getByRole('alert')).toContainText('Не удалось загрузить данные')
+  await page.getByRole('button', { name: 'Повторить →', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByText('По выбранным фильтрам матчей нет.', { exact: true })).toBeVisible()
+  expect(attempts).toBe(2)
+  expect(requested).toHaveLength(1)
+  expect(rawRequests).toEqual([])
 })
 
-test('paginated schedule loads every page, combines filters and separates cancelled games', async ({
+test('bounded calendar refresh pauses in a hidden tab, catches up on return and never downloads raw archive', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-07T12:00:00Z') })
+  const team = { id: 'men', category: 'men', name: 'Хищные Бобры', slug: 'men', logo: null }
+  let calendarRequests = 0
+  let archiveRequests = 0
+  await page.route('**/api/v1/results-archive?**', (route) => {
+    archiveRequests++
+    return route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 100, total_pages: 0 } })
+  })
+  await mockCalendar(page, () => {
+    const current = ++calendarRequests
+    return [
+      calendarItem(
+        {
+          id: 'live-calendar-e2e',
+          team_id: 'men',
+          team,
+          competition_id: 'cup',
+          competition: { id: 'cup', name: 'Кубок', season: '2026-2027', active: true },
+          venue_id: null,
+          venue: null,
+          club_side: 'home',
+          starts_at: '2026-11-07T12:00:00Z',
+          home_team_name: 'Хищные Бобры',
+          away_team_name: 'Соперник прямого эфира',
+          home_score: 79 + current,
+          away_score: 70,
+          status: 'live',
+          home_logo: null,
+          away_logo: null,
+          home_logo_asset_id: null,
+          away_logo_asset_id: null,
+          notes: null,
+          featured: false,
+        } as Match,
+        { section: 'upcoming' },
+      ),
+    ]
+  })
+  await openPage(page, '/matches')
+  // Assert the visible score through the card, independent of its inner layout.
+  const card = page.locator('article.match-card')
+  await expect(card).toContainText('80')
+  await page.clock.fastForward(60_000)
+  await expect(card).toContainText('81')
+  await expect.poll(() => calendarRequests).toBe(2)
+  await page.evaluate(() =>
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }),
+  )
+  await page.clock.fastForward(120_000)
+  expect(calendarRequests).toBe(2)
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(card).toContainText('82')
+  expect(calendarRequests).toBe(3)
+  expect(archiveRequests).toBe(0)
+  await assertNoHorizontalOverflow(page)
+})
+
+test('live refresh clears pagination time and deduplicates resume events until the delayed response completes', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-07T12:00:00Z') })
+  let version = 0
+  await mockCalendar(page, () => [
+    calendarItem(
+      {
+        id: 'delayed-live-calendar',
+        team_id: 'men',
+        team: { id: 'men', category: 'men', name: 'ВГУ', slug: 'men', logo: null },
+        competition_id: 'cup',
+        competition: { id: 'cup', name: 'Кубок', season: '2026-2027', active: true },
+        venue_id: null,
+        venue: null,
+        club_side: 'home',
+        starts_at: '2026-11-07T12:00:00Z',
+        home_team_name: 'ВГУ',
+        away_team_name: 'Соперник задержанного эфира',
+        home_score: 80 + version++,
+        away_score: 70,
+        status: 'live',
+        home_logo: null,
+        away_logo: null,
+        home_logo_asset_id: null,
+        away_logo_asset_id: null,
+        notes: null,
+        featured: false,
+      } as Match,
+      { section: 'upcoming' },
+    ),
+  ])
+
+  let releaseResponse!: () => void
+  const heldResponse = new Promise<void>((resolve) => {
+    releaseResponse = resolve
+  })
+  const requested: URL[] = []
+  let active = 0
+  let maxActive = 0
+  await page.route('**/api/v1/calendar?**', async (route) => {
+    requested.push(new URL(route.request().url()))
+    active++
+    maxActive = Math.max(maxActive, active)
+    try {
+      if (requested.length > 1) await heldResponse
+      await route.fallback()
+    } finally {
+      active--
+    }
+  })
+  await openPage(page, '/matches?season=all&at=2026-11-01T09%3A00%3A00Z')
+  const score = page.locator('article.match-card .match-card__score')
+  await expect(score).toHaveText(/80\s*:\s*70/u)
+  expect(requested).toHaveLength(1)
+  expect(requested[0]!.searchParams.get('at')).toBe('2026-11-01T09:00:00.000Z')
+
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect.poll(() => requested.length).toBe(2)
+  await expect(page).not.toHaveURL(/[?&]at=/u)
+  expect(requested[1]!.searchParams.has('at')).toBe(false)
+  // Resume signals arrive while the same HTTP response is deliberately held.
+  // Stay within the request timeout so this tests concurrency, not a timed-out
+  // request's legitimate retry.
+  try {
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      for (let attempt = 0; attempt < 3; attempt++) {
+        window.dispatchEvent(new Event('focus'))
+        window.dispatchEvent(new Event('online'))
+        document.dispatchEvent(new Event('visibilitychange'))
+      }
+    })
+    await page.clock.runFor(1_000)
+    expect(requested).toHaveLength(2)
+    expect(active).toBe(1)
+    expect(maxActive).toBe(1)
+  } finally {
+    releaseResponse()
+  }
+  await expect(score).toHaveText(/81\s*:\s*70/u)
+  await expect.poll(() => active).toBe(0)
+  expect(requested).toHaveLength(2)
+  // Completion releases the guard so a later reconnect can refresh normally.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect(score).toHaveText(/82\s*:\s*70/u)
+  expect(requested).toHaveLength(3)
+  expect(maxActive).toBe(1)
+})
+
+test('calendar loads one bounded page at a time, combines server filters and separates cancelled games', async ({
   page,
 }) => {
   test.setTimeout(90_000)
@@ -60,27 +236,21 @@ test('paginated schedule loads every page, combines filters and separates cancel
     team_id: 'women',
     away_team_name: 'Соперник девушек E2E',
   }
-  const requested: number[] = []
-  await page.route('**/api/v1/matches?**', async (route) => {
-    const url = new URL(route.request().url())
-    const current = Number(url.searchParams.get('page') || 1)
-    const size = Number(url.searchParams.get('page_size') || 100)
-    requested.push(current)
-    await route.fulfill({
-      json: {
-        items: matches.slice((current - 1) * size, current * size),
-        total: matches.length,
-        page: current,
-        page_size: size,
-        total_pages: Math.ceil(matches.length / size),
-      },
-    })
-  })
+  const requested = await mockCalendar(page, [
+    calendarItem(matches[101]! as Match, { section: 'upcoming' }),
+    calendarItem(matches[102]! as Match, { section: 'changed' }),
+    calendarItem(matches[100]! as Match),
+    ...matches
+      .filter((_, index) => ![100, 101, 102].includes(index))
+      .map((item) => calendarItem(item as Match)),
+  ])
   await openPage(page, '/matches')
-  await expect(page.locator('article.match-card')).toHaveCount(26)
+  await expect(page.locator('article.match-card')).toHaveCount(24)
   await expect(page.getByRole('navigation', { name: 'Страницы матчей' })).toContainText('1 / 5')
   await expect(page.locator('.match-filters__summary')).toContainText('Найдено: 104')
-  expect(requested).toEqual([1, 2])
+  expect(requested.map((url) => url.searchParams.get('page'))).toEqual(['1'])
+  expect(requested[0]!.searchParams.get('page_size')).toBe('24')
+  await expect(page.locator('.calendar-range')).toContainText('Показаны 1–24 из 104')
   const awayWin = page.locator('article.match-card').filter({ hasText: 'Гостиный соперник' })
   await expect(awayWin).toHaveAttribute('data-winning-side', 'away')
   await expect(awayWin.locator('.match-card__score [data-side="away"]')).toHaveClass(/is-winner/)
@@ -108,6 +278,13 @@ test('paginated schedule loads every page, combines filters and separates cancel
       .filter((item) => ['serious', 'critical'].includes(item.impact || ''))
       .map((item) => ({ id: item.id, targets: item.nodes.map((node) => node.target) })),
   ).toEqual([])
+  await page.getByRole('button', { name: 'Дальше →', exact: true }).click()
+  await expect(page.locator('article.match-card')).toHaveCount(24)
+  await expect(page.getByRole('navigation', { name: 'Страницы матчей' })).toContainText('2 / 5')
+  await expect(page.locator('.calendar-range')).toContainText('Показаны 25–48 из 104')
+  expect(requested.map((url) => url.searchParams.get('page'))).toEqual(['1', '2'])
+  expect(requested.every((url) => url.searchParams.get('page_size') === '24')).toBe(true)
+  expect(requested[1]!.searchParams.get('at')).toBe('2026-11-07T12:00:00.000Z')
   await page.getByRole('combobox', { name: 'Команда', exact: true }).click()
   await page.getByRole('option', { name: 'Девушки', exact: true }).click()
   await expect(page.locator('article.match-card')).toHaveCount(1)
@@ -217,10 +394,9 @@ test('match emblems use uploaded and remote logos for both sides and recover fro
           },
     )
   })
-  await page.route('**/api/v1/matches?**', (route) =>
-    route.fulfill({
-      json: { items: matches, total: matches.length, page: 1, page_size: 100, total_pages: 1 },
-    }),
+  await mockCalendar(
+    page,
+    matches.map((item) => calendarItem(item)),
   )
   await openPage(page, '/matches')
   await expect(page.locator('article.match-card')).toHaveCount(matches.length)

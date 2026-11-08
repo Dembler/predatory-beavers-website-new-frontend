@@ -1,3 +1,5 @@
+import type { components } from './api/schema'
+
 export interface ApiResponse<T> {
   data: T | null
 }
@@ -8,78 +10,26 @@ export interface Page<T> {
   page_size: number
   total_pages: number
 }
-export interface Media {
-  id: string
-  content_url: string
-  alt_text: string | null
-  mime: string
-  size: number
-  width: number | null
-  height: number | null
-}
-export interface Team {
-  id: string
-  name: string
-  slug: string
-  category: 'men' | 'women'
-  logo: Media | null
-}
-export interface Player {
-  id: string
-  team_id: string
-  full_name: string
-  birth_date: string | null
-  position: string | null
-  age_text: string | null
-  fact: string | null
-  photo: Media | null
-  team: Team
-  photo_asset_id: string | null
-  sort_order: number
-  active: boolean
-}
-export interface Competition {
-  id: string
-  name: string
-  season: string
-  active: boolean
-}
-export interface Venue {
-  id: string
-  name: string
-  address: string
-  latitude?: number | null
-  longitude?: number | null
-  description: string | null
-}
-export interface Match {
-  /** Public archive labels preserve a missing day or tip-off time. */
+export type Media = components['schemas']['MediaAssetRead']
+export type Team = components['schemas']['TeamRead']
+export type Player = components['schemas']['PublicPlayerRead']
+export type Competition = components['schemas']['CompetitionRead']
+export type Venue = components['schemas']['VenueRead']
+export type Match = components['schemas']['MatchRead'] & {
+  /** Archive records may omit a precise day or tip-off time. */
   display_date?: string
   date_precision?: 'day' | 'month' | 'year'
-  id: string
-  source?: string
-  external_id?: string | null
-  team_id: string
-  team: Team
-  competition_id: string
-  venue_id: string | null
-  club_side: 'home' | 'away'
-  competition: Competition
-  venue: Venue | null
-  starts_at: string
-  home_team_name: string
-  away_team_name: string
-  home_score: number | null
-  away_score: number | null
+}
+/** A match card also displays archive records that have no editable database metadata. */
+export type MatchCardData = Omit<
+  Match,
+  'created_at' | 'updated_at' | 'team' | 'competition' | 'venue' | 'status' | 'active'
+> & {
+  /** Imported archives can also contain unpublished or unrecognized statuses. */
   status: string
-  home_logo: Media | null
-  away_logo: Media | null
-  home_logo_url?: string | null
-  away_logo_url?: string | null
-  home_logo_asset_id: string | null
-  away_logo_asset_id: string | null
-  notes: string | null
-  featured: boolean
+  team: Pick<Team, 'id' | 'name' | 'slug' | 'category'> & { logo?: Media | null }
+  competition: Pick<Competition, 'id' | 'name' | 'season' | 'active'>
+  venue: Pick<Venue, 'id' | 'name' | 'address' | 'description'> | null
 }
 export interface StandingRow {
   position: number
@@ -124,33 +74,9 @@ export interface Standings {
   stage_kind?: string
   games?: StandingsGame[]
 }
-export interface Achievement {
-  id: string
-  title: string
-  achieved_at: string | null
-  media: Media
-  team: Team
-}
-export interface HomeData {
-  next_match: Match | null
-  recent_results: Match[]
-  teams: Team[]
-}
+export type Achievement = components['schemas']['AchievementRead']
+export type HomeData = components['schemas']['HomeData']
 
-export interface ContentBlock {
-  id: string
-  section: 'history' | 'rules' | 'contact_channels' | 'captains' | 'player_roles' | 'viewing_tips'
-  title: string
-  body: string
-  subtitle?: string | null
-  link_url?: string | null
-  link_label?: string | null
-  sort_order: number
-  active: boolean
-}
+export type ContentBlock = components['schemas']['ContentRead']
 
-export interface User {
-  id: string
-  username: string
-  role: 'USER' | 'EDITOR' | 'ADMIN'
-}
+export type User = components['schemas']['UserRead']

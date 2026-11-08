@@ -5,8 +5,8 @@ import AsyncState from '@/components/AsyncState.vue'
 import PlayerAverages from '@/components/PlayerAverages.vue'
 import { useLoad } from '@/composables/useLoad'
 import { rememberTeam } from '@/composables/useTeamPreference'
-import { apiRequest } from '@/shared/api'
-import type { ApiResponse } from '@/shared/types'
+import { apiRequest, mediaUrl } from '@/shared/api'
+import type { ApiResponse, Page, Player } from '@/shared/types'
 import { initials, seasonLabel, type AsbRoster } from '@/shared/roster'
 const route = useRoute()
 const category = computed(() => (route.params.category === 'women' ? 'women' : 'men'))
@@ -17,6 +17,24 @@ const { data, pending, error, load } = useLoad(
   [category],
 )
 const roster = computed(() => data.value?.data)
+const localPage = ref(1)
+watch(category, () => {
+  localPage.value = 1
+})
+const {
+  data: localData,
+  pending: localPending,
+  error: localError,
+  load: loadLocal,
+} = useLoad(
+  () =>
+    apiRequest<Page<Player>>(
+      `/api/v1/players?category=${category.value}&page=${localPage.value}&page_size=24`,
+    ),
+  [category, localPage],
+)
+const localPlayers = computed(() => localData.value?.items ?? [])
+const localTotalPages = computed(() => localData.value?.total_pages ?? 1)
 const brokenPhotos = ref(new Set<string>())
 function photoFailed(id: string) {
   brokenPhotos.value = new Set([...brokenPhotos.value, id])
@@ -64,7 +82,7 @@ function photoFailed(id: string) {
                   v-for="player in roster.players"
                   :key="player.id"
                   class="roster-player"
-                  :to="{ path: `/players/${player.id}`, query: { team: category } }"
+                  :to="`/teams/${category}/players/${player.id}`"
                 >
                   <div class="roster-player__photo">
                     <img
@@ -121,6 +139,62 @@ function photoFailed(id: string) {
         >
       </div>
     </section>
+    <section
+      v-if="localError || localPlayers.length"
+      class="section section--light club-profiles"
+      aria-labelledby="club-profiles-title"
+    >
+      <div class="container">
+        <div class="club-profiles__heading">
+          <div>
+            <p class="eyebrow">От команды клуба</p>
+            <h2 id="club-profiles-title">Клубные профили</h2>
+          </div>
+        </div>
+        <p class="club-profiles__explanation">
+          Истории и фотографии игроков, опубликованные клубом. Участие в официальной заявке АСБ
+          указано в отдельном составе выше.
+        </p>
+        <AsyncState :pending="localPending" :error="localError" @retry="loadLocal">
+          <div class="roster-grid">
+            <RouterLink
+              v-for="player in localPlayers"
+              :key="player.id"
+              class="club-profile"
+              :to="`/players/local/${player.id}`"
+            >
+              <div class="roster-player__photo">
+                <img
+                  v-if="player.photo && !brokenPhotos.has(`local-${player.id}`)"
+                  :src="mediaUrl(player.photo.content_url)"
+                  :alt="player.photo.alt_text || player.full_name"
+                  loading="lazy"
+                  decoding="async"
+                  @error="photoFailed(`local-${player.id}`)"
+                />
+                <span v-else aria-hidden="true">{{ initials(player.full_name) }}</span>
+              </div>
+              <div class="roster-player__body">
+                <h3>{{ player.full_name }}</h3>
+                <p v-if="player.position">{{ player.position }}</p>
+                <b>Клубный профиль <span aria-hidden="true">→</span></b>
+              </div>
+            </RouterLink>
+          </div>
+          <nav
+            v-if="localTotalPages > 1"
+            class="club-profiles__pagination"
+            aria-label="Страницы клубных профилей"
+          >
+            <button type="button" :disabled="localPage <= 1" @click="localPage--">← Назад</button>
+            <span aria-live="polite">{{ localPage }} / {{ localTotalPages }}</span>
+            <button type="button" :disabled="localPage >= localTotalPages" @click="localPage++">
+              Дальше →
+            </button>
+          </nav>
+        </AsyncState>
+      </div>
+    </section>
   </div>
 </template>
 <style scoped>
@@ -141,17 +215,20 @@ function photoFailed(id: string) {
 .team-links a:hover {
   color: white;
 }
-.roster-heading {
+.roster-heading,
+.club-profiles__heading {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 24px;
 }
-.roster-heading .eyebrow {
+.roster-heading .eyebrow,
+.club-profiles__heading .eyebrow {
   margin: 0 0 12px;
 }
-.roster-heading h2 {
+.roster-heading h2,
+.club-profiles__heading h2 {
   margin: 0;
   font-size: clamp(1.75rem, 3vw, 2.6rem);
 }
@@ -168,7 +245,8 @@ function photoFailed(id: string) {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 28px;
 }
-.roster-player {
+.roster-player,
+.club-profile {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -182,7 +260,8 @@ function photoFailed(id: string) {
     box-shadow 0.2s,
     border-color 0.2s;
 }
-.roster-player:hover {
+.roster-player:hover,
+.club-profile:hover {
   border-color: #a8bdcf;
   box-shadow: 0 12px 36px #082d4d12;
 }
@@ -244,6 +323,37 @@ function photoFailed(id: string) {
   font-size: 0.8rem;
   margin-top: 12px;
 }
+.club-profiles {
+  border-top: 1px solid #d5e0e9;
+}
+.club-profiles__explanation {
+  max-width: 65ch;
+  margin: 0 0 28px;
+  color: #52677b;
+  line-height: 1.7;
+}
+.club-profiles__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 32px;
+}
+.club-profiles__pagination button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #a8bdcf;
+  border-radius: 8px;
+  background: white;
+  color: var(--navy);
+  font: inherit;
+  cursor: pointer;
+}
+.club-profiles__pagination button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .roster-waiting {
   position: relative;
   min-height: 480px;
@@ -296,7 +406,8 @@ function photoFailed(id: string) {
   }
 }
 @media (max-width: 600px) {
-  .roster-heading {
+  .roster-heading,
+  .club-profiles__heading {
     align-items: start;
     flex-direction: column;
     gap: 12px;

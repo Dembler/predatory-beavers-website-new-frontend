@@ -11,13 +11,12 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCES = ROOT / "assets/source-images"
 IMAGES = ROOT / "public/images"
 TARGETS = (
     ("team-community.jpg", 1920),
     ("team-men.jpg", 1440),
     ("team-women.jpg", 1440),
-    ("brand/intro-claw-single.png", None),
-    ("brand/intro-scratch-clean.png", None),
     ("brand/club-emblem.png", None),
 )
 
@@ -25,8 +24,9 @@ TARGETS = (
 def optimize() -> list[dict[str, object]]:
     manifest: list[dict[str, object]] = []
     for relative_path, max_width in TARGETS:
-        source = IMAGES / relative_path
-        target = source.with_suffix(".webp")
+        source = SOURCES / relative_path
+        target = (IMAGES / relative_path).with_suffix(".webp")
+        target.parent.mkdir(parents=True, exist_ok=True)
         source_checksum = hashlib.sha256(source.read_bytes()).hexdigest()
         with Image.open(source) as original:
             image = ImageOps.exif_transpose(original)
@@ -50,7 +50,7 @@ def optimize() -> list[dict[str, object]]:
         source_bytes = source.stat().st_size
         output_bytes = target.stat().st_size
         record: dict[str, object] = {
-            "source": "/images/" + relative_path,
+            "source": "assets/source-images/" + relative_path,
             "output": "/images/" + target.relative_to(IMAGES).as_posix(),
             "width": expected_size[0],
             "height": expected_size[1],

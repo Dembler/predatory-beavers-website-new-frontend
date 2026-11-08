@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import TeamEmblem from '@/components/TeamEmblem.vue'
-import type { Match } from '@/shared/types'
+import type { MatchCardData } from '@/shared/types'
 
 type KnownStatus = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled' | 'unpublished'
 type DisplayStatus = KnownStatus | 'unknown'
@@ -18,7 +18,7 @@ const KNOWN_STATUSES: readonly KnownStatus[] = [
 
 const props = withDefaults(
   defineProps<{
-    match: Match
+    match: MatchCardData
     featured?: boolean
     variant?: 'card' | 'row'
   }>(),

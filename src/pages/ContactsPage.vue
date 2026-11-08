@@ -228,6 +228,8 @@ function initials(name: string) {
                     referrerpolicy="no-referrer-when-downgrade"
                     allowfullscreen
                     :tabindex="mapInteractive ? 0 : -1"
+                    :inert="!mapInteractive"
+                    :aria-hidden="!mapInteractive"
                   ></iframe>
                 </div>
                 <div class="venue-map__details">

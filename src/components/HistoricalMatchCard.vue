@@ -2,10 +2,10 @@
 import { computed } from 'vue'
 import MatchCard from '@/components/MatchCard.vue'
 import { resultDate, type PublicResult } from '@/shared/results'
-import type { Match } from '@/shared/types'
+import type { MatchCardData } from '@/shared/types'
 
 const props = defineProps<{ result: PublicResult }>()
-const match = computed<Match>(() => {
+const match = computed<MatchCardData>(() => {
   const row = props.result
   return {
     id: row.id,

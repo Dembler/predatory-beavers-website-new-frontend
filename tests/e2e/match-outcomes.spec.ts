@@ -1,10 +1,7 @@
 import { expect, test, type Locator, type Page as BrowserPage } from '@playwright/test'
 import type { Achievement, ApiResponse, HomeData, Match, Page, Team } from '../../src/shared/types'
-import { assertNoHorizontalOverflow, mockEmptyHistoricalResults, openPage } from './helpers'
-
-test.beforeEach(async ({ page }) => {
-  await mockEmptyHistoricalResults(page)
-})
+import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { calendarItem, mockCalendar } from './calendar-fixtures'
 
 type Outcome = 'win' | 'loss' | 'draw'
 type OutcomeCase = { match: Match; outcome: Outcome; difference: number }
@@ -195,14 +192,15 @@ test('schedule keeps home/away scores and gives final outcomes only to fully sco
   page,
 }) => {
   const matches = [...completed.map((item) => item.match), ...unscored, ...unfinished]
-  const response: Page<Match> = {
-    items: matches,
-    total: matches.length,
-    page: 1,
-    page_size: 100,
-    total_pages: 1,
-  }
-  await page.route('**/api/v1/matches?**', (route) => route.fulfill({ json: response }))
+  await mockCalendar(page, [
+    ...completed.map((item) => calendarItem(item.match)),
+    ...unscored.map((item) => calendarItem(item)),
+    calendarItem(unfinished[0]!, { section: 'upcoming' }),
+    calendarItem(unfinished[1]!, { section: 'upcoming' }),
+    calendarItem(unfinished[2]!, { section: 'changed' }),
+    calendarItem(unfinished[3]!, { section: 'changed' }),
+    calendarItem(unfinished[4]!, { section: 'awaiting' }),
+  ])
   await openPage(page, '/matches')
   const cards = page.locator('article.match-card')
   await expect(cards).toHaveCount(matches.length)
@@ -327,16 +325,9 @@ test('stages are immediately readable while imported provenance and map links st
     description: null,
   }
   const matches = cases.map(([id, notes]) => fixture(id, { notes, venue_id: venue.id, venue }))
-  await page.route('**/api/v1/matches?**', (route) =>
-    route.fulfill({
-      json: {
-        items: matches,
-        total: matches.length,
-        page: 1,
-        page_size: 100,
-        total_pages: 1,
-      },
-    }),
+  await mockCalendar(
+    page,
+    matches.map((item) => calendarItem(item)),
   )
   await openPage(page, '/matches')
   for (const [id, , label] of cases) {

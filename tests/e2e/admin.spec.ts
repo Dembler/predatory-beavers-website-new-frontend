@@ -55,9 +55,17 @@ test.beforeAll(async ({ request }) => {
       'Runtime has no disposable-backend verification token. Run backend/scripts/setup_e2e.py again.',
     )
   for (const url of ['/api/v1/health/e2e', `${runtime.baseURL}/api/v1/health/e2e`]) {
-    const response = await request.get(url, {
-      headers: { 'X-E2E-Runtime-Token': runtime.runtimeToken },
-    })
+    const response = await request
+      .get(url, {
+        headers: { 'X-E2E-Runtime-Token': runtime.runtimeToken },
+      })
+      .catch(() => {
+        // Playwright's network error includes request headers. Keep the runtime
+        // token out of reports when a local API or preview is unavailable.
+        throw new Error(
+          'Isolated E2E runtime is unavailable. Check the local API and frontend proxy.',
+        )
+      })
     if (response.status() !== 200)
       throw new Error('Refusing mutations: actual API did not confirm the isolated E2E runtime.')
     const marker = await response.json()
@@ -200,22 +208,35 @@ test('player CRUD, real photo upload, public profile, photo reference protection
   await page.getByRole('button', { name: `Изменить: ${name}`, exact: true }).click()
   await page.getByRole('dialog').getByLabel('Имя и фамилия').fill(renamed)
   await saveEditor(page)
-  await openPage(page, `/players/${id}`)
+  const teamFilter = page.getByRole('search').getByLabel('Команда', { exact: true })
+  await teamFilter.selectOption('women')
+  await expect(page.getByRole('button', { name: `Изменить: ${renamed}`, exact: true })).toHaveCount(
+    0,
+  )
+  await teamFilter.selectOption('men')
+  await expect(
+    page.getByRole('button', { name: `Изменить: ${renamed}`, exact: true }),
+  ).toBeVisible()
+  await openPage(page, `/players/local/${id}`)
   await expect(page.locator('main h1')).toHaveText(renamed)
   await expect(page.getByText('Тестовая биография.', { exact: false })).toBeVisible()
   await expect(page.locator('main img').first()).toBeVisible()
+  await openPage(page, '/teams/men')
+  await expect(page.getByRole('heading', { name: renamed, exact: true })).toBeVisible()
   await openPage(page, '/admin?tab=media')
   await expect(page.getByRole('heading', { name: photoName, exact: true })).toBeVisible()
   await page.getByRole('button', { name: `Удалить фото: ${photoName}`, exact: true }).click()
   const deletePhoto = page.getByRole('dialog', { name: 'Удалить фотографию?', exact: true })
-  const conflict = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/api/v1/admin/media/${photo.id}`) &&
-      response.request().method() === 'DELETE',
-  )
-  await deletePhoto.getByRole('button', { name: 'Удалить', exact: true }).click()
-  expect((await conflict).status()).toBe(409)
-  await expect(deletePhoto.getByRole('alert')).toBeVisible()
+  await expect(deletePhoto.getByRole('link', { name: renamed, exact: false })).toBeVisible()
+  await expect(deletePhoto.getByRole('button', { name: 'Удалить', exact: true })).toBeDisabled()
+  const csrf = (await (await page.request.get('/api/v1/auth/csrf')).json()).data.csrf_token
+  expect(
+    (
+      await page.request.delete(`/api/v1/admin/media/${photo.id}`, {
+        headers: { 'X-CSRF-Token': csrf },
+      })
+    ).status(),
+  ).toBe(409)
   await deletePhoto.getByRole('button', { name: 'Отмена', exact: true }).click()
   await tab(page, 'Игроки')
   await deleteRow(page, renamed)
@@ -245,7 +266,9 @@ test('new competition and venue become usable immediately; match validation and 
   await page.getByRole('button', { name: /Добавить зал/ }).click()
   await page.getByRole('dialog').getByLabel('Название').fill(venue)
   await page.getByRole('dialog').getByLabel('Адрес').fill('Воронеж, Университетская площадь, 1')
-  await saveNew(page, '/api/v1/admin/venues')
+  await page.getByRole('dialog').getByLabel('Широта', { exact: false }).fill('51.656393')
+  await page.getByRole('dialog').getByLabel('Долгота', { exact: true }).fill('39.206925')
+  const venueId = await saveNew(page, '/api/v1/admin/venues')
   await tab(page, 'Матчи')
   await page.getByRole('button', { name: /Добавить матч/ }).click()
   const editor = page.getByRole('dialog', { name: 'Добавить матч', exact: true })
@@ -263,6 +286,14 @@ test('new competition and venue become usable immediately; match validation and 
   await editor.getByRole('button', { name: 'Сохранить', exact: true }).click()
   await expect(editor.getByRole('alert')).toContainText('не заканчивается вничью')
   await editor.getByLabel('Очки гостей').fill('72')
+  await editor.getByLabel('Клуб играет', { exact: false }).selectOption('away')
+  await expect(editor.getByLabel('Хозяева', { exact: false })).toHaveValue(opponent)
+  await expect(editor.getByLabel('Гости', { exact: false })).toHaveValue('Хищные Бобры')
+  await expect(editor.getByLabel('Очки хозяев')).toHaveValue('72')
+  await expect(editor.getByLabel('Очки гостей')).toHaveValue('80')
+  await editor.getByLabel('Клуб играет', { exact: false }).selectOption('home')
+  await expect(editor.getByLabel('Хозяева', { exact: false })).toHaveValue('Хищные Бобры')
+  await expect(editor.getByLabel('Очки хозяев')).toHaveValue('80')
   const id = await saveNew(page, '/api/v1/admin/matches')
   const matchName = `Хищные Бобры — ${opponent}`
   await findAdminRecord(page, matchName)
@@ -277,11 +308,27 @@ test('new competition and venue become usable immediately; match validation and 
   await expect(card).toContainText('82')
   await expect(card).toContainText('72')
   await expect(card).toContainText(venue)
+
+  await openPage(page, '/admin?tab=venues')
+  await deleteRow(page, venue)
+  const publicMatch = await page.request.get(`/api/v1/matches/${id}`)
+  expect(publicMatch.status()).toBe(200)
+  expect((await publicMatch.json()).data.venue).toBeNull()
+  await openPage(page, '/matches')
+  await expect(card).toContainText('82')
+  await expect(card).not.toContainText(venue)
+  await openPage(page, `/admin?tab=matches&edit=${id}`)
+  const retainedVenue = page.getByRole('dialog').getByLabel('Зал', { exact: true })
+  await expect(retainedVenue).toHaveValue(venueId)
+  await expect(retainedVenue.locator('option:checked')).toHaveText(`${venue} (нет в списке)`)
+  await page.getByRole('dialog').getByLabel('Очки хозяев').fill('84')
+  await saveEditor(page)
+  const editedMatch = (await (await page.request.get(`/api/v1/matches/${id}`)).json()).data
+  expect(editedMatch.home_score).toBe(84)
+  expect(editedMatch.venue).toBeNull()
   await openPage(page, '/admin?tab=matches')
   await deleteRow(page, matchName)
   expect((await page.request.get(`/api/v1/matches/${id}`)).status()).toBe(404)
-  await tab(page, 'Залы')
-  await deleteRow(page, venue)
   await tab(page, 'Турниры')
   await deleteRow(page, competition)
 })
@@ -317,12 +364,20 @@ for (const section of [
     await page.getByRole('dialog').getByLabel('Опубликовать на сайте').check()
     await saveEditor(page)
     await openPage(page, section.route)
-    if (section.key === 'rules') {
-      const accordion = page.locator('details').filter({ hasText: updated })
-      await expect(accordion.locator('summary')).toBeVisible()
-      if (!(await accordion.evaluate((element) => (element as HTMLDetailsElement).open)))
-        await accordion.locator('summary').click()
-    } else await expect(page.getByRole('heading', { name: updated, exact: true })).toBeVisible()
+    const accordion =
+      section.key === 'rules'
+        ? page.locator('.rule-accordion').filter({ hasText: updated })
+        : page.locator('.club-chapter').filter({ hasText: updated })
+    await expect(accordion).toHaveCount(1)
+    const outer =
+      section.key === 'rules'
+        ? page.locator('.rules-library')
+        : page.locator('.club-archive').filter({ has: accordion })
+    if (!(await outer.evaluate((element) => (element as HTMLDetailsElement).open)))
+      await outer.locator(':scope > summary').click()
+    await expect(accordion.locator(':scope > summary')).toBeVisible()
+    if (!(await accordion.evaluate((element) => (element as HTMLDetailsElement).open)))
+      await accordion.locator(':scope > summary').click()
     await expect(
       page.getByText('<script>window.__e2eUnsafe = true</script>', { exact: false }),
     ).toBeVisible()
@@ -407,8 +462,22 @@ test('media library rejects invalid or oversized files, uploads a photo and edit
   })
   const upload = await response
   expect(upload.status()).toBe(201)
-  const id = (await upload.json()).data.id
+  const asset = (await upload.json()).data
+  const id = asset.id
   created.push(`/api/v1/admin/media/${id}`)
+  if (asset.reused) {
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Эта фотография уже есть в медиатеке' }),
+    ).toContainText('Сохранено её прежнее описание')
+    await page
+      .getByRole('button', { name: 'Изменить описание существующего фото', exact: true })
+      .click()
+    const description = page
+      .getByRole('dialog')
+      .getByLabel('Описание для читателей и экранных дикторов')
+    await expect(description).toHaveValue(title)
+    await saveEditor(page)
+  }
   await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
   await page.getByRole('button', { name: `Изменить описание: ${title}`, exact: true }).click()
   await page
@@ -446,14 +515,16 @@ test('failed save keeps the form values and can be retried without creating dupl
   await deleteRow(page, title)
 })
 
-test('an expired session returns the editor to login without exposing admin data', async ({
+test('an expired session hides admin data and restores the draft after signing in again', async ({
   page,
 }) => {
   await login(page)
+  let expire = true
   await page.route('**/api/v1/admin/players', async (route) => {
-    if (route.request().method() === 'POST')
+    if (route.request().method() === 'POST' && expire) {
+      expire = false
       await route.fulfill({ status: 401, json: { code: 'INVALID_SESSION' } })
-    else await route.continue()
+    } else await route.continue()
   })
   await page.getByRole('button', { name: /Добавить игрока/ }).click()
   await page.getByRole('dialog').getByLabel('Имя и фамилия').fill(`E2E Истекшая сессия ${run}`)
@@ -465,7 +536,113 @@ test('an expired session returns the editor to login without exposing admin data
   await expect(page.getByLabel('Логин', { exact: true })).toBeVisible()
   await expect(
     page.getByRole('navigation', { name: 'Разделы управления', exact: true }),
-  ).toHaveCount(0)
+  ).not.toBeVisible()
+  await page.getByLabel('Логин', { exact: true }).fill(runtime!.username)
+  await page.getByLabel('Пароль', { exact: true }).fill(runtime!.password)
+  await page.getByRole('button', { name: /^Войти/ }).click()
+  const restored = page.getByRole('dialog', { name: 'Добавить игрока', exact: true })
+  await expect(restored).toBeVisible()
+  await expect(restored.getByLabel('Имя и фамилия')).toHaveValue(`E2E Истекшая сессия ${run}`)
+  await saveNew(page, '/api/v1/admin/players')
+  await deleteRow(page, `E2E Истекшая сессия ${run}`)
+})
+
+test('retry after a committed create loses its response reuses the same record', async ({
+  page,
+}) => {
+  await login(page)
+  const name = `E2E Потерянный ответ ${run}`
+  let lostId = ''
+  let sentKey = ''
+  let loseResponse = true
+  await page.route('**/api/v1/admin/players', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    if (!loseResponse) {
+      expect(route.request().headers()['idempotency-key']).toBe(sentKey)
+      return route.fallback()
+    }
+    sentKey = route.request().headers()['idempotency-key'] || ''
+    expect(sentKey).not.toBe('')
+    const committed = await route.fetch()
+    expect(committed.status()).toBe(201)
+    lostId = (await committed.json()).data.id
+    created.push(`/api/v1/admin/players/${lostId}`)
+    loseResponse = false
+    await route.abort('failed')
+  })
+  await page.getByRole('button', { name: /Добавить игрока/ }).click()
+  const editor = page.getByRole('dialog')
+  await editor.getByLabel('Имя и фамилия').fill(name)
+  await editor.getByRole('button', { name: 'Сохранить', exact: true }).click()
+  await expect(editor.getByRole('alert')).toBeVisible()
+  await expect(editor.getByLabel('Имя и фамилия')).toHaveValue(name)
+  const recoveredId = await saveNew(page, '/api/v1/admin/players')
+  expect(recoveredId).toBe(lostId)
+  const readback = await page.request.get(`/api/v1/admin/players?q=${encodeURIComponent(name)}`)
+  expect((await readback.json()).total).toBe(1)
+})
+
+test('a stale editor cannot overwrite another editor and keeps the unsaved draft', async ({
+  page,
+}) => {
+  await login(page)
+  const name = `E2E Конфликт ${run}`
+  await page.getByRole('button', { name: /Добавить игрока/ }).click()
+  await page.getByRole('dialog').getByLabel('Имя и фамилия').fill(name)
+  const id = await saveNew(page, '/api/v1/admin/players')
+  await page.getByRole('button', { name: `Изменить: ${name}`, exact: true }).click()
+  const editor = page.getByRole('dialog')
+  await editor.getByLabel('Имя и фамилия').fill(`${name} мой черновик`)
+  const current = (await (await page.request.get(`/api/v1/admin/players/${id}`)).json()).data
+  const csrf = (await (await page.request.get('/api/v1/auth/csrf')).json()).data.csrf_token
+  const changed = await page.request.patch(`/api/v1/admin/players/${id}`, {
+    headers: { 'X-CSRF-Token': csrf },
+    data: { position: 'Изменено другим редактором', expected_updated_at: current.updated_at },
+  })
+  expect(changed.status()).toBe(200)
+  const save = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/api/v1/admin/players/${id}`) &&
+      response.request().method() === 'PATCH',
+  )
+  await editor.getByRole('button', { name: 'Сохранить', exact: true }).click()
+  expect((await save).status()).toBe(409)
+  await expect(editor.getByRole('alert')).toContainText(/измен|редактор|верс/i)
+  await expect(editor.getByLabel('Имя и фамилия')).toHaveValue(`${name} мой черновик`)
+  const preserved = (await (await page.request.get(`/api/v1/admin/players/${id}`)).json()).data
+  expect(preserved.full_name).toBe(name)
+  expect(preserved.position).toBe('Изменено другим редактором')
+  page.once('dialog', (dialog) => dialog.accept())
+  await editor.getByRole('button', { name: 'Отмена', exact: true }).click()
+})
+
+test('trash recovery preserves a player and requires explicit publication', async ({ page }) => {
+  await login(page)
+  const name = `E2E Восстановление ${run}`
+  await page.getByRole('button', { name: /Добавить игрока/ }).click()
+  const creation = page.getByRole('dialog', { name: 'Добавить игрока', exact: true })
+  await creation.getByLabel('Имя и фамилия').fill(name)
+  await creation.getByLabel('Команда', { exact: false }).selectOption({ label: 'Мужская команда' })
+  const id = await saveNew(page, '/api/v1/admin/players')
+  expect((await page.request.get(`/api/v1/players/${id}`)).status()).toBe(200)
+  await deleteRow(page, name)
+  expect((await page.request.get(`/api/v1/players/${id}`)).status()).toBe(404)
+  await page.getByRole('button', { name: 'Корзина', exact: true }).click()
+  await page.getByLabel('Поиск в корзине', { exact: true }).fill(name)
+  await page.getByRole('button', { name: 'Найти', exact: true }).click()
+  await page.getByRole('button', { name: `Восстановить: ${name}`, exact: true }).click()
+  const confirmation = page.getByRole('dialog', { name: 'Восстановить запись?', exact: true })
+  await confirmation.getByRole('button', { name: 'Восстановить', exact: true }).click()
+  await expect(confirmation).not.toBeVisible()
+  await expect(page.getByText(/Запись восстановлена и скрыта/)).toBeVisible()
+  expect((await page.request.get(`/api/v1/players/${id}`)).status()).toBe(404)
+  await page.getByRole('button', { name: 'Проверить восстановленную запись', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: 'Редактировать запись', exact: true })
+  await expect(editor.getByLabel('Имя и фамилия')).toHaveValue(name)
+  await expect(editor.getByLabel('Показывать на сайте')).not.toBeChecked()
+  await editor.getByLabel('Показывать на сайте').check()
+  await saveEditor(page)
+  expect((await page.request.get(`/api/v1/players/${id}`)).status()).toBe(200)
 })
 
 test('parallel match-logo uploads after reload share one CSRF request and both persist', async ({

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { Match } from '../../src/shared/types'
-import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { assertNoHorizontalOverflow, openPage, supportsNativeLinkTabbing } from './helpers'
 
 async function mainNavigation(page: Page, mobile: boolean) {
   await expect(page.locator('main h1')).toBeVisible()
@@ -98,6 +98,82 @@ test('home shows the latest result when the next match has not been scheduled', 
   await assertNoHorizontalOverflow(page)
 })
 
+test('home refreshes scores without overlapping requests and preserves the last data through a failed update', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2026-11-07T12:00:00Z') })
+  const team = { id: 'men', category: 'men', name: 'Хищные Бобры', slug: 'men', logo: null }
+  const match = {
+    id: 'live-home-e2e',
+    team_id: 'men',
+    team,
+    competition_id: 'cup',
+    competition: { id: 'cup', name: 'Кубок', season: '2026-2027', active: true },
+    venue_id: null,
+    venue: null,
+    club_side: 'home',
+    starts_at: '2026-11-07T12:00:00Z',
+    home_team_name: 'Хищные Бобры',
+    away_team_name: 'Соперник прямого эфира',
+    home_score: 80,
+    away_score: 70,
+    status: 'live',
+    home_logo: null,
+    away_logo: null,
+    home_logo_asset_id: null,
+    away_logo_asset_id: null,
+    notes: null,
+    featured: true,
+  }
+  let requests = 0
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await page.route('**/api/v1/home', async (route) => {
+    const current = ++requests
+    if (current === 2) await held
+    if (current === 3) return route.abort('failed')
+    await route.fulfill({
+      json: {
+        data: {
+          next_match: { ...match, home_score: current >= 4 ? 86 : current === 2 ? 83 : 80 },
+          recent_results: [],
+          teams: [team],
+        },
+      },
+    })
+  })
+  try {
+    await openPage(page, '/')
+    const scores = page.locator('.dashboard-main .match-card__team-score')
+    await expect(scores).toHaveText(['80', '70'])
+    await page.clock.fastForward(60_000)
+    await expect.poll(() => requests).toBe(2)
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('focus'))
+      window.dispatchEvent(new Event('online'))
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    // Keep the response inside the transport's 20 s timeout while several
+    // resume events compete with the active poll.
+    await page.clock.fastForward(1_000)
+    expect(requests).toBe(2)
+    release()
+    await expect(scores).toHaveText(['83', '70'])
+    await page.clock.fastForward(60_000)
+    const notice = page.locator('.live-refresh-note')
+    await expect(notice).toContainText('Показана последняя загруженная версия')
+    await expect(scores).toHaveText(['83', '70'])
+    await notice.getByRole('button', { name: 'Обновить', exact: true }).click()
+    await expect(scores).toHaveText(['86', '70'])
+    await expect(notice).toHaveCount(0)
+    expect(requests).toBe(4)
+  } finally {
+    release()
+  }
+})
+
 test('floating header and menu targets remain inside the viewport around the breakpoint', async ({
   page,
 }, testInfo) => {
@@ -146,10 +222,42 @@ test('floating header and menu targets remain inside the viewport around the bre
   }
 })
 
+test('desktop team dropdown opens with Enter, follows either team and closes with Escape', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Desktop dropdown navigation')
+  await openPage(page, '/club')
+  const nav = page.getByRole('navigation', { name: 'Основная навигация', exact: true })
+  const teams = nav.getByRole('button', { name: 'Команды' })
+  for (const [name, path] of [
+    ['Мужская команда', '/teams/men'],
+    ['Команда девушек', '/teams/women'],
+  ] as const) {
+    await teams.focus()
+    await page.keyboard.press('Enter')
+    await expect(teams).toHaveAttribute('aria-expanded', 'true')
+    const destination = nav.getByRole('link', { name, exact: true })
+    await expect(destination).toBeVisible()
+    await destination.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(new RegExp(`${path}$`))
+    await expect(teams).toHaveAttribute('aria-expanded', 'false')
+  }
+  await teams.focus()
+  await page.keyboard.press('Enter')
+  await expect(teams).toHaveAttribute('aria-expanded', 'true')
+  await page.keyboard.press('Escape')
+  await expect(teams).toHaveAttribute('aria-expanded', 'false')
+})
+
 test('desktop team dropdown supports keyboard navigation and closes after choosing a team', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Desktop dropdown navigation')
+  test.skip(
+    !(await supportsNativeLinkTabbing(page)),
+    'This browser skips native links even on a minimal HTML page; native Tab traversal is unverified.',
+  )
   await openPage(page, '/club')
   const nav = page.getByRole('navigation', { name: 'Основная навигация', exact: true })
   await expect(nav.locator(':scope > a')).toHaveText([
@@ -183,7 +291,9 @@ test('desktop team dropdown supports keyboard navigation and closes after choosi
     'aria-current',
     'page',
   )
-  await expect(page.locator('.nav-cta')).toHaveAttribute('href', '/matches')
+  await expect(
+    page.locator('.site-header').getByRole('link', { name: 'Матчи', exact: true }),
+  ).toHaveCount(1)
 })
 
 test('mobile card keeps focus, locks background, closes on navigation and restores its trigger', async ({
@@ -195,7 +305,23 @@ test('mobile card keeps focus, locks background, closes on navigation and restor
   await trigger.click()
   const menu = page.getByRole('dialog', { name: 'Всё о клубе', exact: true })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('link')).toHaveCount(9)
+  const destinations = await menu
+    .getByRole('link')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href')))
+  expect(destinations).toEqual(
+    expect.arrayContaining([
+      '/',
+      '/matches',
+      '/standings',
+      '/teams/men',
+      '/teams/women',
+      '/club',
+      '/rules',
+      '/contacts',
+      '/admin',
+    ]),
+  )
+  expect(new Set(destinations).size).toBe(destinations.length)
   await expect(menu.getByRole('link', { name: /^Команда девушек/ })).toBeVisible()
   await expect(page.locator('html')).toHaveClass(/navigation-open/)
   await expect(page.locator('html')).toHaveCSS('overflow', 'hidden')

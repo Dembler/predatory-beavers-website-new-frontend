@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Beavers public HTML every five minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=5min
+AccuracySec=15s
+Unit=beavers-prerender.service
+
+[Install]
+WantedBy=timers.target

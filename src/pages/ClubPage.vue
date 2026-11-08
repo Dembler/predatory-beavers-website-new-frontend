@@ -1,17 +1,43 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import ClubHonours from '@/components/ClubHonours.vue'
 import ClubTournamentHistory from '@/components/ClubTournamentHistory.vue'
 import { useLoad } from '@/composables/useLoad'
-import { apiRequest } from '@/shared/api'
+import { apiRequest, mediaUrl } from '@/shared/api'
 import { clubCopy } from '@/shared/clubCopy'
-import type { ApiResponse, ContentBlock } from '@/shared/types'
+import type { Achievement, ApiResponse, ContentBlock, Page } from '@/shared/types'
 
 const { data, pending, error, load } = useLoad(() =>
   apiRequest<ApiResponse<{ items: ContentBlock[] }>>('/api/v1/content/history'),
 )
+const memoryPage = ref(1)
+const {
+  data: memoryData,
+  pending: memoryPending,
+  error: memoryError,
+  load: loadMemories,
+} = useLoad(
+  () => apiRequest<Page<Achievement>>(`/api/v1/achievements?page=${memoryPage.value}&page_size=24`),
+  [memoryPage],
+)
+const memories = computed(() => memoryData.value?.items ?? [])
+const memoryTotalPages = computed(() => memoryData.value?.total_pages ?? 1)
+const brokenMemories = ref(new Set<string>())
+const memoryDateFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Europe/Moscow',
+})
+function memoryDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : memoryDateFormatter.format(date)
+}
+function memoryPhotoFailed(id: string) {
+  brokenMemories.value = new Set([...brokenMemories.value, id])
+}
 const chapters = computed(() =>
   (data.value?.data?.items ?? []).map((chapter) => ({
     ...chapter,
@@ -46,7 +72,7 @@ const historyGroups = computed(() =>
       ),
     },
     {
-      label: '2026',
+      label: 'С 2026',
       title: 'Игра продолжается',
       chapters: datedChapters.value.filter((chapter) => chapterYear(chapter)! >= 2026),
     },
@@ -57,42 +83,28 @@ const historyGroups = computed(() =>
     },
   ].filter((group) => group.chapters.length),
 )
-const eras = [
-  {
-    year: '2007',
-    label: 'Начало',
-    title: 'Всё начинается с команды.',
-    text: 'В Воронежском государственном университете появляется баскетбольный клуб. Первые турниры, первые соперники и своя игра.',
-    chapter: '2007:',
-  },
-  {
-    year: '2022',
-    label: 'Новое имя',
-    title: 'Характер получает имя.',
-    text: 'БК ВГУ становится частью студенческого спортивного клуба «Хищные Бобры». Игроков и болельщиков объединяет одна эмблема.',
-    chapter: '2022:',
-  },
-  {
-    year: '2024',
-    label: 'Большая площадка',
-    title: 'Воронеж. Краснодар. Вся страна.',
-    text: 'Мужская сборная выигрывает турнир Кубка регионов АСБ в Краснодаре. В клубной истории появляются новые города и победы в формате 3×3.',
-    chapter: '2024: золото',
-  },
-  {
-    year: '2026',
-    label: 'Игра продолжается',
-    title: 'Новые форматы. Тот же азарт.',
-    text: 'Баскетбол 5×5, 3×3 и фиджитал. Мужская сборная и сборная девушек продолжают представлять ВГУ на студенческих турнирах.',
-    chapter: '2026:',
-  },
-]
-const currentEra = computed(() => eras[activeEra.value]!)
+// The preview and its destination come from the same published record. Renaming
+// or removing a chapter must never leave a button pointing at a title prefix.
+const eras = computed(() =>
+  historyGroups.value.map((group) => {
+    const chapter = group.chapters[0]!
+    return {
+      id: chapter.id,
+      year: chapterYear(chapter)?.toString() || 'Клуб',
+      period: group.label,
+      label: group.title,
+      title: chapter.title,
+      text: chapter.subtitle || chapter.body.split(/\n\s*\n/u)[0] || '',
+    }
+  }),
+)
+watch(eras, (items) => {
+  if (activeEra.value >= items.length) activeEra.value = 0
+})
+const currentEra = computed(() => eras.value[activeEra.value])
 
-async function readChapter(prefix: string) {
-  const chapter = chapters.value.find((item) => item.title.startsWith(prefix))
-  if (!chapter) return
-  const target = document.getElementById(`chapter-${chapter.id}`) as HTMLDetailsElement | null
+async function readChapter(id: string) {
+  const target = document.getElementById(`chapter-${id}`) as HTMLDetailsElement | null
   if (!target) return
   const group = target.closest('.club-archive') as HTMLDetailsElement | null
   if (group) group.open = true
@@ -155,30 +167,31 @@ async function readChapter(prefix: string) {
           <p class="eyebrow">Наш путь</p>
           <h2 id="club-timeline-title">Годы идут.<br />Команда остаётся.</h2>
         </div>
-        <div class="club-years" role="group" aria-label="Этапы истории клуба">
+        <div v-if="eras.length" class="club-years" role="group" aria-label="Этапы истории клуба">
           <button
             v-for="(era, index) in eras"
-            :key="era.year"
+            :key="era.id"
             type="button"
             :aria-pressed="activeEra === index"
             aria-controls="club-era-panel"
             @click="activeEra = index"
           >
-            <span class="club-years__dot" aria-hidden="true"></span><strong>{{ era.year }}</strong
+            <span class="club-years__dot" aria-hidden="true"></span><strong>{{ era.period }}</strong
             ><span>{{ era.label }}</span>
           </button>
         </div>
-        <div id="club-era-panel" class="club-era" aria-live="polite" aria-atomic="true">
+        <div
+          v-if="currentEra"
+          id="club-era-panel"
+          class="club-era"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           <span class="club-era__year" aria-hidden="true">{{ currentEra.year }}</span>
-          <div :key="currentEra.year" class="club-era__copy">
+          <div :key="currentEra.id" class="club-era__copy">
             <h3>{{ currentEra.title }}</h3>
             <p>{{ currentEra.text }}</p>
-            <button
-              v-if="chapters.length"
-              class="club-link"
-              type="button"
-              @click="readChapter(currentEra.chapter)"
-            >
+            <button class="club-link" type="button" @click="readChapter(currentEra.id)">
               Читать эту главу <span aria-hidden="true">↗</span>
             </button>
           </div>
@@ -222,6 +235,63 @@ async function readChapter(prefix: string) {
       </div>
     </section>
     <ClubHonours />
+    <section
+      v-if="memoryError || memories.length"
+      id="club-memories"
+      class="section section--light club-memories"
+      aria-labelledby="club-memories-title"
+    >
+      <div class="container">
+        <div class="club-section-heading">
+          <p class="eyebrow">Клубный фотоархив</p>
+          <h2 id="club-memories-title">Памятные моменты</h2>
+          <p>Фотографии и события, которыми делится команда клуба.</p>
+        </div>
+        <AsyncState :pending="memoryPending" :error="memoryError" @retry="loadMemories">
+          <div class="club-memories__grid">
+            <figure
+              v-for="memory in memories"
+              :key="memory.id"
+              :id="`memory-${memory.id}`"
+              class="club-memory"
+            >
+              <img
+                v-if="memory.media && !brokenMemories.has(memory.id)"
+                :src="mediaUrl(memory.media.content_url)"
+                :alt="memory.media.alt_text || memory.title"
+                loading="lazy"
+                decoding="async"
+                @error="memoryPhotoFailed(memory.id)"
+              />
+              <div v-else class="club-memory__placeholder" aria-hidden="true">ХБ</div>
+              <figcaption>
+                <p>
+                  {{ memory.team.category === 'women' ? 'Команда девушек' : 'Мужская команда'
+                  }}<template v-if="memory.achieved_at">
+                    ·
+                    <time :datetime="memory.achieved_at">{{
+                      memoryDate(memory.achieved_at)
+                    }}</time></template
+                  >
+                </p>
+                <h3>{{ memory.title }}</h3>
+              </figcaption>
+            </figure>
+          </div>
+          <nav
+            v-if="memoryTotalPages > 1"
+            class="club-memories__pagination"
+            aria-label="Страницы фотоархива"
+          >
+            <button type="button" :disabled="memoryPage <= 1" @click="memoryPage--">← Назад</button>
+            <span aria-live="polite">{{ memoryPage }} / {{ memoryTotalPages }}</span>
+            <button type="button" :disabled="memoryPage >= memoryTotalPages" @click="memoryPage++">
+              Дальше →
+            </button>
+          </nav>
+        </AsyncState>
+      </div>
+    </section>
     <ClubTournamentHistory />
     <section class="section section--light club-full-history" aria-labelledby="club-history-title">
       <div class="container">
@@ -302,6 +372,67 @@ async function readChapter(prefix: string) {
 <style scoped>
 .club-page {
   --club-accent: #ffb5b1;
+}
+.club-memories__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 24px;
+}
+.club-memory {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #d3dfe9;
+  border-radius: 12px;
+  background: white;
+}
+.club-memory > img,
+.club-memory__placeholder {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  place-items: center;
+  background: #e7edf2;
+  color: #52677b;
+  font: 700 3rem var(--font-display);
+}
+.club-memory figcaption {
+  padding: 20px;
+}
+.club-memory figcaption > p {
+  margin: 0 0 12px;
+  color: #52677b;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+.club-memory h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.club-memories__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 32px;
+}
+.club-memories__pagination button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #a8bdcf;
+  border-radius: 8px;
+  background: white;
+  color: var(--navy);
+  font: inherit;
+  cursor: pointer;
+}
+.club-memories__pagination button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .club-hero {
   overflow: hidden;

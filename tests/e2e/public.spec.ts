@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
-import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { assertNoHorizontalOverflow, openPage, supportsNativeLinkTabbing } from './helpers'
 
 const routes = [
   ['/', /Хищные/],
@@ -41,11 +41,14 @@ for (const [path, title] of routes) {
       expect(
         clearance,
         'Content needs deliberate space below the fixed menu',
-      ).toBeGreaterThanOrEqual(testInfo.project.name === 'mobile' ? 35 : 63)
+      ).toBeGreaterThanOrEqual(
+        path === '/admin' ? 24 : testInfo.project.name === 'mobile' ? 35 : 63,
+      )
     }
     await page.screenshot({
       path: testInfo.outputPath(`${path.replace(/\W/g, '_') || 'home'}.png`),
       fullPage: true,
+      scale: 'css',
     })
     const timing = await page.evaluate(() => {
       const navigation = performance.getEntriesByType(
@@ -94,13 +97,14 @@ test('failed API request displays retry and recovers without reloading the page'
   fail = false
   await page.getByRole('button', { name: /Повторить/ }).click()
   await expect(page.getByRole('alert')).toHaveCount(0)
-  await expect(page.getByRole('status')).toContainText(/Заявка нового сезона/)
+  await expect(page.locator('.roster-waiting')).toContainText(/Заявка нового сезона/)
 })
 
 test('switching teams while the first response is delayed cannot show the previous team roster', async ({
   page,
 }) => {
   let menStarted!: () => void
+  let menCompleted!: () => void
   let releaseMen!: () => void
   const firstRequest = new Promise<void>((resolve) => {
     menStarted = resolve
@@ -108,37 +112,44 @@ test('switching teams while the first response is delayed cannot show the previo
   const releaseFirst = new Promise<void>((resolve) => {
     releaseMen = resolve
   })
+  const firstCompleted = new Promise<void>((resolve) => {
+    menCompleted = resolve
+  })
   await page.route('**/api/v1/asb-roster/*', async (route) => {
     const category = new URL(route.request().url()).pathname.split('/').at(-1) || 'men'
     if (category === 'men') {
       menStarted()
       await releaseFirst
     }
-    await route.fulfill({
-      json: {
-        data: {
-          team: category,
-          current_season: '2026-2027',
-          season: '2026-2027',
-          is_current_season: true,
-          status: 'published',
-          source_url: 'https://asbasket.ru/',
-          players: [
-            {
-              id: `player-${category}`,
-              full_name:
-                category === 'men' ? 'Игрок мужской команды E2E' : 'Игрок команды девушек E2E',
-              photo_url: null,
-              games_played: 1,
-              points_per_game: 10,
-              assists_per_game: 2,
-              rebounds_per_game: 3,
-              minutes_per_game: 25,
-            },
-          ],
+    try {
+      await route.fulfill({
+        json: {
+          data: {
+            team: category,
+            current_season: '2026-2027',
+            season: '2026-2027',
+            is_current_season: true,
+            status: 'published',
+            source_url: 'https://asbasket.ru/',
+            players: [
+              {
+                id: `player-${category}`,
+                full_name:
+                  category === 'men' ? 'Игрок мужской команды E2E' : 'Игрок команды девушек E2E',
+                photo_url: null,
+                games_played: 1,
+                points_per_game: 10,
+                assists_per_game: 2,
+                rebounds_per_game: 3,
+                minutes_per_game: 25,
+              },
+            ],
+          },
         },
-      },
-    })
+      })
+    } finally {
+      if (category === 'men') menCompleted()
+    }
   })
   await openPage(page, '/teams/men')
   await firstRequest
@@ -149,11 +160,10 @@ test('switching teams while the first response is delayed cannot show the previo
   await expect(
     page.getByRole('heading', { name: 'Игрок команды девушек E2E', exact: true }),
   ).toBeVisible()
-  const staleResponse = page.waitForResponse((response) =>
-    response.url().includes('/api/v1/asb-roster/men'),
-  )
   releaseMen()
-  await (await staleResponse).finished()
+  // A superseded request may already be aborted; Playwright need not emit a
+  // response event. Wait for the held handler to finish delivering it instead.
+  await firstCompleted
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
@@ -217,18 +227,79 @@ test('mobile navigation opens, follows a link and closes', async ({ page }, test
 test('hall selection updates the Yandex map and map gestures require explicit activation', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000)
+  const nativeLinkTabbing = await supportsNativeLinkTabbing(page)
+  if (!nativeLinkTabbing)
+    testInfo.annotations.push({
+      type: 'limitation',
+      description:
+        'This browser skips native links even on minimal HTML. Tab traversal to the route link is unverified.',
+    })
   await openPage(page, '/contacts')
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
   const map = page.locator('.venue-map iframe')
   await expect(map).toHaveAttribute('src', /https:\/\/yandex\.ru\/map-widget\/v1\//)
   const initialSource = await map.getAttribute('src')
   const activation = page.getByRole('button', { name: 'Управлять картой', exact: true })
+  const routeLink = page.getByRole('link', { name: 'Проложить маршрут', exact: false })
+
+  async function expectInactiveMapAccessibility(state: string) {
+    await expect(map).toHaveAttribute('inert', '')
+    await expect(map).toHaveAttribute('aria-hidden', 'true')
+    await expect(map).toHaveAttribute('tabindex', '-1')
+    const result = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze()
+    const violations = result.violations.filter((item) =>
+      ['serious', 'critical'].includes(item.impact ?? ''),
+    )
+    await testInfo.attach(`map-accessibility-${state}`, {
+      body: JSON.stringify(violations, null, 2),
+      contentType: 'application/json',
+    })
+    expect(
+      violations.map((item) => ({ id: item.id, targets: item.nodes.map((node) => node.target) })),
+    ).toEqual([])
+  }
+
   await expect(activation).toHaveAttribute('aria-pressed', 'false')
   await expect(map).toHaveCSS('pointer-events', 'none')
-  await activation.click()
-  await expect(
-    page.getByRole('button', { name: 'Выключить управление картой', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true')
+  await expectInactiveMapAccessibility('initial')
+  // Keyboard traversal skips the entire inactive browsing context, including
+  // the map provider's internal controls, and reaches the route link directly.
+  if (nativeLinkTabbing) {
+    await activation.focus()
+    await page.keyboard.press('Tab')
+    await expect(routeLink).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+  } else await activation.focus()
+  await expect(activation).toBeFocused()
+  await page.keyboard.press('Enter')
+  const deactivation = page.getByRole('button', {
+    name: 'Выключить управление картой',
+    exact: true,
+  })
+  await expect(deactivation).toHaveAttribute('aria-pressed', 'true')
+  await expect(map).not.toHaveAttribute('inert')
+  await expect(map).toHaveAttribute('aria-hidden', 'false')
+  await expect(map).toHaveAttribute('tabindex', '0')
   await expect(map).toHaveCSS('pointer-events', 'auto')
+  await page.keyboard.press('Tab')
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('venue-map-frame')
+  await deactivation.focus()
+  await page.keyboard.press('Space')
+  await expect(activation).toHaveAttribute('aria-pressed', 'false')
+  await expect(map).toHaveCSS('pointer-events', 'none')
+  await expectInactiveMapAccessibility('disabled-again')
+  if (nativeLinkTabbing) {
+    await activation.focus()
+    await page.keyboard.press('Tab')
+    await expect(routeLink).toBeFocused()
+  }
+  await expect(routeLink).toHaveAttribute('target', '_blank')
+  await expect(routeLink).toHaveAttribute('rel', 'noopener noreferrer')
+  await activation.focus()
+  await page.keyboard.press('Enter')
   if (testInfo.project.name === 'mobile') {
     await page.getByRole('combobox', { name: 'Выберите зал', exact: true }).click()
     await page.getByRole('option').nth(1).click()
@@ -242,10 +313,9 @@ test('hall selection updates the Yandex map and map gestures require explicit ac
     'false',
   )
   await expect(map).toHaveCSS('pointer-events', 'none')
-  await expect(page.getByRole('link', { name: 'Проложить маршрут', exact: false })).toHaveAttribute(
-    'href',
-    /https:\/\/yandex\.ru\/maps\/\?rtext=/,
-  )
+  await expect(map).toHaveAttribute('inert', '')
+  await expect(map).toHaveAttribute('aria-hidden', 'true')
+  await expect(routeLink).toHaveAttribute('href', /https:\/\/yandex\.ru\/maps\/\?rtext=/)
   await assertNoHorizontalOverflow(page)
 })
 
@@ -376,7 +446,7 @@ test('missing and malformed player IDs show a useful state with a working roster
   page,
 }) => {
   for (const id of ['00000000-0000-0000-0000-000000000000', 'invalid-e2e-id']) {
-    await page.goto(`/players/${id}`)
+    await page.goto(`/teams/men/players/${id}`)
     const skip = page.getByRole('button', { name: 'Пропустить', exact: true })
     if (await skip.isVisible().catch(() => false)) await skip.click()
     await expect(

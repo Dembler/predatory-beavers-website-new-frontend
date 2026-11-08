@@ -1,5 +1,20 @@
 import { expect, type Page } from '@playwright/test'
 
+export async function supportsNativeLinkTabbing(page: Page): Promise<boolean> {
+  if (process.env.E2E_BROWSER !== 'webkit') return true
+  const probe = await page.context().newPage()
+  try {
+    await probe.setContent(
+      '<button id="start">Start</button><a id="link" href="#target">Link</a><button id="end">End</button>',
+    )
+    await probe.locator('#start').focus()
+    await probe.keyboard.press('Tab')
+    return await probe.locator('#link').evaluate((link) => link === document.activeElement)
+  } finally {
+    await probe.close()
+  }
+}
+
 export async function openPage(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'domcontentloaded' })
   const skip = page.getByRole('button', { name: 'Пропустить', exact: true })
@@ -19,19 +34,6 @@ export async function assertNoHorizontalOverflow(page: Page) {
   ).toBeLessThanOrEqual(size.width + 1)
 }
 
-export async function mockEmptyHistoricalResults(page: Page) {
-  await page.route('**/api/v1/results-archive?**', (route) =>
-    route.fulfill({
-      json: { items: [], total: 0, page: 1, page_size: 100, total_pages: 1 },
-    }),
-  )
-  await page.route('**/api/v1/results-archive/summary', (route) =>
-    route.fulfill({
-      json: { data: { coverage: [] } },
-    }),
-  )
-}
-
 export async function saveEditor(page: Page) {
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click()
@@ -39,8 +41,22 @@ export async function saveEditor(page: Page) {
 }
 
 export async function findAdminRecord(page: Page, name: string) {
+  await expect(page.locator('.admin-record-count')).toBeVisible()
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
   const edit = page.getByRole('button', { name: `Изменить: ${name}`, exact: true })
+  const search = page.getByRole('searchbox', { name: 'Поиск в разделе', exact: true })
+  if (await search.isVisible()) {
+    if ((await search.inputValue()) === name && (await edit.isVisible())) return edit
+    await search.fill(name)
+    const response = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return url.pathname.startsWith('/api/v1/admin/') && url.searchParams.get('q') === name
+    })
+    await page.getByRole('button', { name: 'Найти', exact: true }).click()
+    expect((await response).status()).toBe(200)
+    await expect(edit).toBeVisible()
+    return edit
+  }
   const pagination = page.getByRole('navigation', { name: 'Страницы записей', exact: true })
   for (let attempts = 0; attempts < 100 && !(await edit.count()); attempts++) {
     await expect(pagination).toBeVisible()

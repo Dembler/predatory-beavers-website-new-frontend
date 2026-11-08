@@ -1,10 +1,17 @@
 import { computed, ref } from 'vue'
-import { ApiError, apiRequest } from '@/shared/api'
+import { ApiError, apiRequest, onUnauthorized } from '@/shared/api'
 import type { ApiResponse, User } from '@/shared/types'
 
 const user = ref<User | null>(null)
+const sessionExpired = ref(false)
 let csrf = ''
 let csrfRefresh: Promise<void> | null = null
+
+onUnauthorized(() => {
+  if (user.value) sessionExpired.value = true
+  user.value = null
+  csrf = ''
+})
 
 function refreshCsrf(): Promise<void> {
   if (!csrfRefresh) {
@@ -39,6 +46,7 @@ export function useAuth() {
       )
       if (!result.data) throw new Error('Не удалось войти.')
       user.value = result.data.user
+      sessionExpired.value = false
       csrf = result.data.csrf_token
     } catch (error) {
       if (error instanceof ApiError && error.status === 401)
@@ -79,10 +87,12 @@ export function useAuth() {
   async function logout() {
     await mutate('/api/v1/auth/logout', { method: 'POST' })
     user.value = null
+    sessionExpired.value = false
     csrf = ''
   }
   return {
     user,
+    sessionExpired,
     canEdit: computed(() => user.value?.role === 'ADMIN' || user.value?.role === 'EDITOR'),
     restore,
     login,

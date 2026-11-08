@@ -1,17 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminCollection from '@/components/admin/AdminCollection.vue'
 import AdminMedia from '@/components/admin/AdminMedia.vue'
 import { useAuth } from '@/composables/useAuth'
-import { allPages } from '@/shared/api'
+import { allPages, apiRequest } from '@/shared/api'
 import { errorMessage, type AdminConfig, type AdminField, type AdminRecord } from '@/shared/admin'
-import type { Competition, ContentBlock, Media, Team, Venue } from '@/shared/types'
+import type {
+  ApiResponse,
+  Competition,
+  ContentBlock,
+  Media,
+  Page,
+  Team,
+  Venue,
+} from '@/shared/types'
 
-const { user, canEdit, restore, login, logout } = useAuth()
+const { user, canEdit, sessionExpired, restore, login, logout } = useAuth()
 const route = useRoute()
 const router = useRouter()
 const checking = ref(true)
+const workspaceMounted = ref(false)
+let workspaceOwner = ''
 const busy = ref(false)
 const error = ref('')
 const username = ref('')
@@ -25,6 +35,8 @@ const navigationOpen = ref(false)
 const navigationToggle = ref<HTMLButtonElement | null>(null)
 const tabs = [
   { key: 'players', label: 'Игроки' },
+  { key: 'teams', label: 'Команды' },
+  { key: 'achievements', label: 'Достижения' },
   { key: 'matches', label: 'Матчи' },
   { key: 'media', label: 'Фотографии' },
   { key: 'history', label: 'История' },
@@ -43,7 +55,10 @@ const currentTabLabel = computed(
   () => tabs.find((item) => item.key === tab.value)?.label ?? 'Игроки',
 )
 const navigationGroups = [
-  { title: 'Команда и игры', keys: ['players', 'captains', 'matches', 'competitions', 'venues'] },
+  {
+    title: 'Команда и игры',
+    keys: ['players', 'teams', 'captains', 'matches', 'competitions', 'venues', 'achievements'],
+  },
   {
     title: 'Страницы сайта',
     keys: ['history', 'rules', 'player_roles', 'viewing_tips', 'contact_channels'],
@@ -69,28 +84,48 @@ function closeNavigation() {
 }
 
 async function loadMedia() {
-  media.value = await allPages<Media>('/api/v1/admin/media')
+  media.value = (await apiRequest<Page<Media>>('/api/v1/admin/media?page=1&page_size=12')).items
 }
 async function loadReferences() {
   referenceError.value = ''
-  try {
-    const results = await Promise.all([
-      allPages<Team>('/api/v1/teams'),
-      allPages<Competition>('/api/v1/admin/competitions'),
-      allPages<Venue>('/api/v1/admin/venues'),
-      allPages<Media>('/api/v1/admin/media'),
-    ])
-    ;[teams.value, competitions.value, venues.value, media.value] = results
-  } catch (cause) {
-    referenceError.value = errorMessage(cause)
+  const results = await Promise.allSettled([
+    allPages<Team>('/api/v1/admin/teams').then((items) => {
+      teams.value = items
+    }),
+    allPages<Competition>('/api/v1/admin/competitions').then((items) => {
+      competitions.value = items
+    }),
+    allPages<Venue>('/api/v1/admin/venues').then((items) => {
+      venues.value = items
+    }),
+    loadMedia(),
+  ])
+  const labels = ['Команды', 'Турниры', 'Залы', 'Фотографии']
+  referenceError.value = results
+    .flatMap((result, index) =>
+      result.status === 'rejected' ? [`${labels[index]}: ${errorMessage(result.reason)}`] : [],
+    )
+    .join(' ')
+  if (sessionExpired.value) throw new Error('Сессия завершилась. Войдите снова: черновик сохранён.')
+}
+async function mountWorkspace() {
+  if (!user.value || !canEdit.value) return
+  if (workspaceOwner && workspaceOwner !== user.value.id) {
+    workspaceMounted.value = false
+    await nextTick()
   }
+  workspaceOwner = user.value.id
+  workspaceMounted.value = true
 }
 async function init() {
   checking.value = true
   error.value = ''
   try {
     await restore()
-    if (canEdit.value) await loadReferences()
+    if (canEdit.value) {
+      await loadReferences()
+      await mountWorkspace()
+    }
   } catch (cause) {
     error.value = errorMessage(cause)
   } finally {
@@ -103,7 +138,10 @@ async function signIn() {
   try {
     await login(username.value, password.value)
     password.value = ''
-    if (canEdit.value) await loadReferences()
+    if (canEdit.value) {
+      await loadReferences()
+      await mountWorkspace()
+    }
   } catch (cause) {
     error.value = errorMessage(cause)
   } finally {
@@ -115,6 +153,8 @@ async function signOut() {
   error.value = ''
   try {
     await logout()
+    workspaceMounted.value = false
+    workspaceOwner = ''
     password.value = ''
     media.value = []
   } catch (cause) {
@@ -135,6 +175,12 @@ onMounted(init)
 const text = (value: unknown) =>
   value === null || value === undefined || value === '' ? '—' : String(value)
 const publication = (row: AdminRecord) => (row.active ? 'На сайте' : 'Скрыто')
+function competitionLabel(item: Pick<Competition, 'name' | 'season'>) {
+  const normalized = (value: string) => value.replace(/[–—−]/g, '-').replace(/\s/g, '')
+  return !item.season || normalized(item.name).includes(normalized(item.season))
+    ? item.name
+    : `${item.name} · ${item.season}`
+}
 const teamOptions = computed(() =>
   teams.value.map((item) => ({
     value: item.id,
@@ -178,6 +224,7 @@ const contentSections: Record<ContentBlock['section'], ContentSectionConfig> = {
     titleLabel: 'Имя и фамилия',
     bodyLabel: 'Команда',
     subtitleLabel: 'Дополнительная подпись',
+    links: true,
   },
   player_roles: {
     title: 'Роли игроков',
@@ -195,13 +242,113 @@ const contentSections: Record<ContentBlock['section'], ContentSectionConfig> = {
   },
 }
 const config = computed((): AdminConfig => {
+  if (tab.value === 'teams')
+    return {
+      title: 'Команды',
+      singular: 'Добавить команду',
+      endpoint: '/api/v1/admin/teams',
+      allowCreate: false,
+      allowDelete: false,
+      description:
+        'Названия и эмблемы клубных команд. Мужская команда и команда девушек созданы в системе заранее.',
+      defaults: { name: '', logo_asset_id: null, active: true },
+      fields: [
+        { key: 'name', label: 'Название', required: true, maxLength: 200 },
+        {
+          key: 'logo_asset_id',
+          label: 'Эмблема команды',
+          type: 'image',
+          hint: 'Без выбранного изображения используется стандартная эмблема клуба.',
+        },
+        {
+          key: 'active',
+          label: 'Показывать команду на сайте',
+          type: 'checkbox',
+          hint: 'Скрытие команды также скрывает связанные с ней публичные записи.',
+        },
+      ],
+      columns: [
+        { label: 'Название', value: (row) => text(row.name) },
+        { label: 'Команда', value: (row) => (row.category === 'women' ? 'Девушки' : 'Мужская') },
+        { label: 'Публикация', value: publication },
+      ],
+      publicPath: (row) => `/teams/${row.category}`,
+    }
+  if (tab.value === 'achievements')
+    return {
+      title: 'Достижения',
+      singular: 'Добавить достижение',
+      endpoint: '/api/v1/admin/achievements',
+      description:
+        'Редакторские записи и фотографии достижений. Официальные результаты турниров и медали на витрине клуба берутся из отдельного архива соревнований.',
+      defaults: {
+        team_id: teams.value[0]?.id ?? '',
+        title: '',
+        media_asset_id: null,
+        achieved_at: null,
+        sort_order: 0,
+        active: true,
+      },
+      fields: [
+        { key: 'title', label: 'Название', required: true, maxLength: 300 },
+        {
+          key: 'team_id',
+          label: 'Команда',
+          type: 'select',
+          required: true,
+          options: teamOptions.value,
+        },
+        { key: 'media_asset_id', label: 'Фотография достижения', type: 'image', required: true },
+        { key: 'achieved_at', label: 'Дата достижения', type: 'date' },
+        { key: 'sort_order', label: 'Порядок', type: 'number', required: true, min: 0 },
+        { key: 'active', label: 'Опубликовать', type: 'checkbox' },
+      ],
+      columns: [
+        { label: 'Достижение', value: (row) => text(row.title) },
+        {
+          label: 'Команда',
+          value: (row) => ((row.team as Team)?.category === 'women' ? 'Девушки' : 'Мужская'),
+        },
+        { label: 'Дата', value: (row) => text(row.achieved_at) },
+        { label: 'Публикация', value: publication },
+      ],
+      filters: [
+        {
+          key: 'active',
+          label: 'Публикация',
+          options: [
+            { value: 'true', label: 'На сайте' },
+            { value: 'false', label: 'Скрыто' },
+          ],
+        },
+      ],
+    }
   if (tab.value === 'players')
     return {
       title: 'Игроки',
       singular: 'Добавить игрока',
       endpoint: '/api/v1/admin/players',
-      publicPath: (row) => `/players/${row.id}`,
-      description: 'Составы команд, фотографии и личные истории игроков.',
+      publicPath: (row) => `/players/local/${row.id}`,
+      description:
+        'Клубные профили: фотографии, биографии и порядок в отдельном блоке страницы команды. Официальная заявка и статистика АСБ обновляются отдельно.',
+      filters: [
+        {
+          key: 'category',
+          label: 'Команда',
+          options: [
+            { value: 'men', label: 'Мужская команда' },
+            { value: 'women', label: 'Команда девушек' },
+          ],
+        },
+        {
+          key: 'active',
+          label: 'Публикация',
+          options: [
+            { value: 'true', label: 'На сайте' },
+            { value: 'false', label: 'Скрыто' },
+          ],
+        },
+      ],
       defaults: {
         team_id: teams.value[0]?.id ?? '',
         full_name: '',
@@ -232,7 +379,13 @@ const config = computed((): AdminConfig => {
           options: teamOptions.value,
         },
         { key: 'position', label: 'Амплуа', maxLength: 100 },
-        { key: 'birth_date', label: 'Дата рождения', type: 'date' },
+        {
+          key: 'birth_date',
+          label: 'Дата рождения',
+          type: 'date',
+          max: new Date().toLocaleDateString('en-CA'),
+          hint: 'Для внутреннего учёта. Точная дата не публикуется.',
+        },
         {
           key: 'age_text',
           label: 'Возраст / подпись',
@@ -261,6 +414,47 @@ const config = computed((): AdminConfig => {
       publicLabel: 'Открыть расписание на сайте',
       description:
         'Расписание, результаты и место проведения. Время вводится в часовом поясе вашего устройства.',
+      filters: [
+        {
+          key: 'team',
+          label: 'Команда',
+          options: teams.value.map((item) => ({
+            value: item.slug,
+            label: item.category === 'women' ? 'Команда девушек' : 'Мужская команда',
+          })),
+        },
+        {
+          key: 'competition_id',
+          label: 'Турнир',
+          options: competitions.value.map((item) => ({
+            value: item.id,
+            label: competitionLabel(item),
+          })),
+        },
+        {
+          key: 'status',
+          label: 'Статус',
+          options: [
+            { value: 'scheduled', label: 'Запланирован' },
+            { value: 'live', label: 'В игре' },
+            { value: 'finished', label: 'Завершён' },
+            { value: 'postponed', label: 'Перенесён' },
+            { value: 'cancelled', label: 'Отменён' },
+          ],
+        },
+      ],
+      onChange: (key, value, form, previous) => {
+        if (key !== 'club_side' || value === previous) return
+        for (const [home, away] of [
+          ['home_team_name', 'away_team_name'],
+          ['home_score', 'away_score'],
+          ['home_logo_asset_id', 'away_logo_asset_id'],
+        ]) {
+          const oldHome = form[home!]
+          form[home!] = form[away!] ?? null
+          form[away!] = oldHome ?? null
+        }
+      },
       defaults: {
         team_id: teams.value[0]?.id ?? '',
         competition_id: '',
@@ -275,6 +469,8 @@ const config = computed((): AdminConfig => {
         notes: '',
         home_logo_asset_id: null,
         away_logo_asset_id: null,
+        featured: false,
+        active: true,
       },
       columns: [
         {
@@ -290,6 +486,17 @@ const config = computed((): AdminConfig => {
             }),
         },
         {
+          label: 'Команда',
+          value: (row) => ((row.team as Team)?.category === 'women' ? 'Девушки' : 'Мужская'),
+        },
+        {
+          label: 'Турнир',
+          value: (row) => {
+            const competition = row.competition as Competition | undefined
+            return competition ? competitionLabel(competition) : '—'
+          },
+        },
+        {
           label: 'Статус',
           value: (row) =>
             ({
@@ -301,6 +508,7 @@ const config = computed((): AdminConfig => {
             })[String(row.status)] ?? text(row.status),
         },
         { label: 'Счёт', value: (row) => `${text(row.home_score)} : ${text(row.away_score)}` },
+        { label: 'Публикация', value: publication },
       ],
       fields: [
         {
@@ -317,7 +525,7 @@ const config = computed((): AdminConfig => {
           required: true,
           options: competitions.value.map((item) => ({
             value: item.id,
-            label: `${item.name} · ${item.season}`,
+            label: competitionLabel(item),
           })),
           hint: 'Новый турнир можно создать во вкладке «Турниры».',
         },
@@ -332,6 +540,7 @@ const config = computed((): AdminConfig => {
             { value: 'home', label: 'Дома (хозяева)' },
             { value: 'away', label: 'В гостях' },
           ],
+          hint: 'При смене стороны названия, очки и эмблемы команд поменяются местами.',
         },
         { key: 'starts_at', label: 'Дата и время', type: 'datetime-local', required: true },
         {
@@ -358,6 +567,13 @@ const config = computed((): AdminConfig => {
         { key: 'home_logo_asset_id', label: 'Эмблема хозяев', type: 'image' },
         { key: 'away_logo_asset_id', label: 'Эмблема гостей', type: 'image' },
         { key: 'notes', label: 'Примечание', type: 'textarea', maxLength: 5000 },
+        { key: 'featured', label: 'Выделить матч на главной', type: 'checkbox' },
+        {
+          key: 'active',
+          label: 'Опубликовать матч на сайте',
+          type: 'checkbox',
+          hint: 'После восстановления из корзины матч скрыт. Проверьте турнир, дату и счёт перед публикацией.',
+        },
       ],
       prepare: (form) => {
         if (form.status === 'finished' && (form.home_score === null || form.away_score === null))
@@ -382,6 +598,24 @@ const config = computed((): AdminConfig => {
       singular: 'Добавить турнир',
       endpoint: '/api/v1/admin/competitions',
       description: 'Соревнования и сезоны для календаря матчей.',
+      filters: [
+        {
+          key: 'active',
+          label: 'Публикация',
+          options: [
+            { value: 'true', label: 'На сайте' },
+            { value: 'false', label: 'Скрыто' },
+          ],
+        },
+      ],
+      deleteImpact: async (row) => {
+        const result = await apiRequest<
+          ApiResponse<{ matches_count: number; published_matches_count: number }>
+        >(`/api/v1/admin/competitions/${row.id}/impact`)
+        if (!result.data)
+          throw new Error('Не удалось проверить связанные матчи. Повторите попытку.')
+        return `Связанных матчей: ${result.data.matches_count}. Сейчас доступны на сайте: ${result.data.published_matches_count}. После удаления турнира они перестанут отображаться. Турнир можно вернуть из корзины, затем проверить и опубликовать связанные матчи отдельно.`
+      },
       defaults: { name: '', season: '', active: true },
       fields: [
         { key: 'name', label: 'Название', required: true, maxLength: 200 },
@@ -408,23 +642,58 @@ const config = computed((): AdminConfig => {
       publicPath: '/contacts',
       publicLabel: 'Открыть раздел залов на сайте',
       description: 'Места проведения матчей и адреса для болельщиков.',
-      defaults: { name: '', address: '', description: '', active: true },
+      deleteWarning: async () =>
+        'Зал и его адрес исчезнут с публичных страниц. Связанные матчи останутся на сайте без зала. Связь сохранится в админке; зал можно вернуть из корзины и опубликовать отдельно.',
+      defaults: {
+        name: '',
+        address: '',
+        latitude: null,
+        longitude: null,
+        description: '',
+        active: true,
+      },
       fields: [
         { key: 'name', label: 'Название', required: true, maxLength: 200 },
         { key: 'address', label: 'Адрес', required: true, maxLength: 500 },
+        {
+          key: 'latitude',
+          label: 'Широта',
+          type: 'number',
+          min: -90,
+          max: 90,
+          step: 'any',
+          hint: 'Необязательно. Укажите обе координаты либо оставьте обе пустыми.',
+        },
+        { key: 'longitude', label: 'Долгота', type: 'number', min: -180, max: 180, step: 'any' },
         {
           key: 'description',
           label: 'Как добраться / описание',
           type: 'textarea',
           maxLength: 2000,
         },
-        { key: 'active', label: 'Показывать на сайте', type: 'checkbox' },
+        {
+          key: 'active',
+          label: 'Показывать на сайте',
+          type: 'checkbox',
+          hint: 'Если скрыть зал, связанные матчи останутся на сайте без его названия и адреса.',
+        },
       ],
       columns: [
         { label: 'Зал', value: (row) => text(row.name) },
         { label: 'Адрес', value: (row) => text(row.address) },
         { label: 'Публикация', value: publication },
       ],
+      onChange: (key, value, form, previous) => {
+        if (key === 'address' && value !== previous) {
+          form.latitude = null
+          form.longitude = null
+        }
+      },
+      prepare: (form) => {
+        if ((form.latitude === null) !== (form.longitude === null))
+          throw new Error('Укажите обе координаты или оставьте обе пустыми.')
+        return form
+      },
     }
   const section = Object.prototype.hasOwnProperty.call(contentSections, tab.value)
     ? (tab.value as ContentBlock['section'])
@@ -492,7 +761,19 @@ const config = computed((): AdminConfig => {
           : 'Открыть страницу правил',
     query: `section=${section}`,
     description:
-      'Тексты появятся на публичной странице после сохранения. Абзацы разделяйте пустой строкой.',
+      section === 'history'
+        ? 'Главы истории на странице клуба и на её шкале событий. Абзацы разделяйте пустой строкой.'
+        : 'Тексты появятся на публичной странице после сохранения. Абзацы разделяйте пустой строкой.',
+    filters: [
+      {
+        key: 'active',
+        label: 'Публикация',
+        options: [
+          { value: 'true', label: 'На сайте' },
+          { value: 'false', label: 'Скрыто' },
+        ],
+      },
+    ],
     defaults: {
       section,
       title: '',
@@ -533,10 +814,13 @@ const config = computed((): AdminConfig => {
     <section class="section section--light admin-section">
       <div class="container">
         <div v-if="checking" class="state-panel" role="status">Проверяем сессию…</div>
-        <form v-else-if="!user" class="login-card admin-form" @submit.prevent="signIn">
+        <form v-if="!checking && !user" class="login-card admin-form" @submit.prevent="signIn">
           <img src="/images/brand/club-emblem.webp" alt="" width="64" height="64" />
           <h2>Вход для команды</h2>
           <p>Управляйте составом, матчами и историей клуба.</p>
+          <p v-if="sessionExpired" class="form-success" role="status">
+            Сессия завершилась. Войдите снова — открытый черновик сохранён в этой вкладке.
+          </p>
           <div class="form-field">
             <label for="admin-username">Логин</label
             ><input
@@ -567,14 +851,14 @@ const config = computed((): AdminConfig => {
             {{ busy ? 'Входим…' : 'Войти' }} <span aria-hidden="true">→</span>
           </button>
         </form>
-        <template v-else>
+        <div v-if="workspaceMounted" v-show="!!user" class="admin-workspace">
           <div class="admin-session">
             <span
-              >Вы вошли как <strong>{{ user.username }}</strong
+              >Вы вошли как <strong>{{ user?.username }}</strong
               ><small>{{
-                user.role === 'ADMIN'
+                user?.role === 'ADMIN'
                   ? 'Администратор'
-                  : user.role === 'EDITOR'
+                  : user?.role === 'EDITOR'
                     ? 'Редактор'
                     : 'Пользователь'
               }}</small></span
@@ -583,11 +867,7 @@ const config = computed((): AdminConfig => {
             </button>
           </div>
           <p v-if="error" class="form-error" role="alert">{{ error }}</p>
-          <div v-if="!canEdit" class="state-panel">
-            У вашей учётной записи нет доступа к управлению сайтом. Обратитесь к администратору
-            клуба.
-          </div>
-          <template v-else>
+          <div v-show="canEdit">
             <nav
               class="admin-tabs"
               :class="{ 'admin-tabs--open': navigationOpen }"
@@ -646,13 +926,19 @@ const config = computed((): AdminConfig => {
             <AdminCollection
               v-else
               :key="tab"
-              :config="config"
+              :config="{ ...config, refreshReferences: loadReferences }"
               :media="media"
               @changed="loadReferences"
               @media-changed="refreshMedia"
             />
-          </template>
-        </template>
+          </div>
+        </div>
+        <div v-if="user && !canEdit" class="state-panel">
+          У вашей учётной записи нет доступа к управлению сайтом. Обратитесь к администратору клуба.
+          <button type="button" class="quiet-button" :disabled="busy" @click="signOut">
+            Выйти
+          </button>
+        </div>
       </div>
     </section>
   </div>
@@ -661,6 +947,18 @@ const config = computed((): AdminConfig => {
 <style scoped>
 .admin-page {
   min-width: 0;
+}
+.admin-page .page-hero {
+  padding-block: 36px 20px;
+}
+.admin-page .page-hero h1 {
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+.admin-page .page-hero .eyebrow {
+  margin-bottom: 8px;
+}
+.admin-page .admin-section {
+  padding-top: 20px;
 }
 .admin-tabs__toggle,
 .admin-tabs__group > p,
@@ -700,7 +998,7 @@ const config = computed((): AdminConfig => {
   overscroll-behavior: contain;
   scroll-padding-block: 8px;
 }
-.admin-page :deep(.admin-delete-dialog) {
+.admin-page :deep(.admin-confirm-dialog) {
   overflow-y: auto;
 }
 .admin-page :deep(.editor-dialog .admin-form),
@@ -974,13 +1272,13 @@ const config = computed((): AdminConfig => {
   .admin-page :deep(.dialog-actions .form-hint) {
     display: none;
   }
-  .admin-page :deep(.admin-delete-dialog) {
+  .admin-page :deep(.admin-confirm-dialog) {
     padding: 24px 20px 0;
   }
-  .admin-page :deep(.admin-delete-dialog .dialog-actions) {
+  .admin-page :deep(.admin-confirm-dialog .dialog-actions) {
     margin: 20px -20px 0;
   }
-  .admin-page :deep(.admin-delete-dialog > p) {
+  .admin-page :deep(.admin-confirm-dialog > p) {
     font-size: 0.9rem;
     line-height: 1.65;
   }

@@ -1,5 +1,16 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const browserName = process.env.E2E_BROWSER || 'chromium'
+if (browserName !== 'chromium' && browserName !== 'firefox' && browserName !== 'webkit') {
+  throw new Error('E2E_BROWSER must be chromium, firefox or webkit')
+}
+const desktopDevice = {
+  chromium: devices['Desktop Chrome'],
+  firefox: devices['Desktop Firefox'],
+  webkit: devices['Desktop Safari'],
+}[browserName]!
+const artifactsDir = process.env.E2E_ARTIFACTS_DIR || '.data'
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 45_000,
@@ -8,15 +19,15 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   forbidOnly: Boolean(process.env.CI),
-  outputDir: '.data/test-results',
+  outputDir: `${artifactsDir}/test-results`,
   reporter: [
     ['list'],
-    ['html', { outputFolder: '.data/playwright-report', open: 'never' }],
-    ['json', { outputFile: '.data/playwright-results.json' }],
+    ['html', { outputFolder: `${artifactsDir}/playwright-report`, open: 'never' }],
+    ['json', { outputFile: `${artifactsDir}/playwright-results.json` }],
   ],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:5173',
-    channel: process.env.E2E_BROWSER_CHANNEL || undefined,
+    channel: browserName === 'chromium' ? process.env.E2E_BROWSER_CHANNEL || undefined : undefined,
     locale: 'ru-RU',
     timezoneId: 'Europe/Moscow',
     reducedMotion: 'reduce',
@@ -28,8 +39,20 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } },
+      use: { ...desktopDevice, viewport: { width: 1440, height: 1000 } },
     },
-    { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
+    // Firefox does not support Playwright's isMobile emulation. WebKit runs the
+    // iPhone profile; Chromium remains the default for the existing workflow.
+    ...(browserName === 'firefox'
+      ? []
+      : [
+          {
+            name: 'mobile',
+            use: {
+              ...devices['iPhone 13'],
+              defaultBrowserType: browserName as 'chromium' | 'webkit',
+            },
+          },
+        ]),
   ],
 })

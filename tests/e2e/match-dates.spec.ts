@@ -1,10 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { Match } from '../../src/shared/types'
-import { assertNoHorizontalOverflow, mockEmptyHistoricalResults, openPage } from './helpers'
-
-test.beforeEach(async ({ page }) => {
-  await mockEmptyHistoricalResults(page)
-})
+import { assertNoHorizontalOverflow, openPage } from './helpers'
+import { calendarItem, mockCalendar, type CalendarFixture } from './calendar-fixtures'
 
 const currentTime = new Date('2026-11-01T09:00:00Z')
 
@@ -33,13 +30,9 @@ function fixture(id: string, status: Match['status'], startsAt: string): Match {
   }
 }
 
-async function mockMatches(page: Page, matches: Match[]) {
+async function mockMatches(page: Page, matches: CalendarFixture[]) {
   await page.clock.setFixedTime(currentTime)
-  await page.route('**/api/v1/matches?**', (route) =>
-    route.fulfill({
-      json: { items: matches, total: matches.length, page: 1, page_size: 100, total_pages: 1 },
-    }),
-  )
+  await mockCalendar(page, matches)
 }
 
 function group(page: Page, name: string) {
@@ -63,7 +56,12 @@ test('only future scheduled games and live games appear as upcoming; past schedu
   )
   const pastLive = fixture('Идущий матч с прошедшей датой', 'live', '2026-10-31T16:00:00Z')
   const finished = fixture('Завершённый матч', 'finished', '2026-10-30T16:00:00Z')
-  await mockMatches(page, [pastScheduled, futureScheduled, pastLive, finished])
+  await mockMatches(page, [
+    calendarItem(pastLive, { section: 'upcoming' }),
+    calendarItem(futureScheduled, { section: 'upcoming' }),
+    calendarItem(finished),
+    calendarItem(pastScheduled, { section: 'awaiting' }),
+  ])
   await openPage(page, '/matches?team=all')
   await expect(page.locator('article.match-card')).toHaveCount(4)
 
@@ -102,7 +100,7 @@ test('a schedule containing only past scheduled games shows no false upcoming or
   page,
 }) => {
   const past = fixture('Матч без опубликованного результата', 'scheduled', '2026-08-22T14:00:00Z')
-  await mockMatches(page, [past])
+  await mockMatches(page, [calendarItem(past, { section: 'awaiting' })])
   await openPage(page, '/matches?team=all')
   await expect(page.locator('article.match-card')).toHaveCount(1)
   await expect(page.getByRole('heading', { name: 'Ближайшие', exact: true })).toHaveCount(0)
@@ -131,7 +129,7 @@ test('archive precision preserves a known year or day without inventing a tip-of
     display_date: '9 января 2024',
     date_precision: 'day',
   }
-  await mockMatches(page, [yearOnly, dayOnly])
+  await mockMatches(page, [calendarItem(yearOnly), calendarItem(dayOnly)])
   await openPage(page, '/matches?team=all')
   const cards = page.locator('article.match-card')
   await expect(cards).toHaveCount(2)
