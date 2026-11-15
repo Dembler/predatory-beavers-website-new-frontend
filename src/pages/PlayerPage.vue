@@ -6,7 +6,7 @@ import PlayerAverages from '@/components/PlayerAverages.vue'
 import { useLoad } from '@/composables/useLoad'
 import { useLiveRefresh } from '@/composables/useLiveRefresh'
 import { rememberTeam } from '@/composables/useTeamPreference'
-import { ApiError, apiRequest } from '@/shared/api'
+import { ApiError, apiRequest, mediaUrl } from '@/shared/api'
 import { setMetadata, setPageIdentity } from '@/shared/pageMetadata'
 import type { ApiResponse } from '@/shared/types'
 import { initials, seasonLabel, type AsbPlayerProfile } from '@/shared/roster'
@@ -77,7 +77,7 @@ watch(category, rememberTeam, { immediate: true })
             <div class="asb-player-profile__photo">
               <img
                 v-if="player.photo_url && !brokenPhoto"
-                :src="player.photo_url"
+                :src="mediaUrl(player.photo_url)"
                 :alt="player.full_name"
                 @error="brokenPhoto = true"
               /><span v-else aria-hidden="true">{{ initials(player.full_name) }}</span>

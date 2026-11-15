@@ -4,7 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AppSelect from '@/components/AppSelect.vue'
 import AsyncState from '@/components/AsyncState.vue'
 import { useLoad } from '@/composables/useLoad'
-import { apiRequest } from '@/shared/api'
+import { apiRequest, mediaUrl } from '@/shared/api'
 import { clubCopy } from '@/shared/clubCopy'
 import type { ApiResponse } from '@/shared/types'
 import type { PublicResult } from '@/shared/results'
@@ -137,7 +137,7 @@ function plural(value: number, one: string, few: string, many: string) {
                 >
                   <img
                     v-if="item.logo_url"
-                    :src="item.logo_url"
+                    :src="mediaUrl(item.logo_url)"
                     :alt="item.logo_alt"
                     loading="lazy"
                   />

@@ -91,7 +91,7 @@ function photoFailed(id: string) {
                   <div class="roster-player__photo">
                     <img
                       v-if="player.photo_url && !brokenPhotos.has(player.id)"
-                      :src="player.photo_url"
+                      :src="mediaUrl(player.photo_url)"
                       :alt="player.full_name"
                       loading="lazy"
                       decoding="async"

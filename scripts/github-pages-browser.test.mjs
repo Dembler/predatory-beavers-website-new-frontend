@@ -63,6 +63,36 @@ test('production Pages bundle loads assets and restores a direct history URL', a
     })
     await page.route('**/api/**', (route) => {
       apiRequests.push(route.request().url())
+      if (new URL(route.request().url()).pathname === '/api/v1/results-archive/tournaments') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              items: [
+                {
+                  key: 'asb',
+                  name: 'АСБ',
+                  description: 'Студенческий баскетбол',
+                  organizer: 'АСБ',
+                  logo_url: '/images/tournaments/asb.webp',
+                  logo_alt: 'Эмблема АСБ',
+                  results: [
+                    {
+                      id: 'pages-test',
+                      team: 'men',
+                      discipline: '3x3',
+                      tournament: 'АСБ 3×3',
+                      year: 2026,
+                    },
+                  ],
+                },
+              ],
+              result_count: 1,
+            },
+          }),
+        })
+      }
       return route.fulfill({
         status: 503,
         contentType: 'application/json',
@@ -73,6 +103,14 @@ test('production Pages bundle loads assets and restores a direct history URL', a
     await page.goto(`${origin}${route}`)
     await page.getByRole('heading', { level: 1, name: 'О клубе' }).waitFor()
     await page.waitForLoadState('networkidle')
+    const tournamentLogo = page.getByAltText('Эмблема АСБ')
+    await tournamentLogo.scrollIntoViewIfNeeded()
+    await tournamentLogo.evaluate((image) => image.decode())
+    assert.equal(
+      await tournamentLogo.getAttribute('src'),
+      `${base}images/tournaments/asb.webp`,
+      'logos returned by the API use the frontend deployment directory',
+    )
     assert.equal(
       new URL(page.url()).pathname + new URL(page.url()).search + new URL(page.url()).hash,
       route,
