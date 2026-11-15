@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import ClubHonours from '@/components/ClubHonours.vue'
 import ClubTournamentHistory from '@/components/ClubTournamentHistory.vue'
+import HistoryPhoto from '@/components/HistoryPhoto.vue'
 import { useLoad } from '@/composables/useLoad'
 import { apiRequest, mediaUrl } from '@/shared/api'
 import { clubCopy } from '@/shared/clubCopy'
@@ -47,6 +48,7 @@ const chapters = computed(() =>
     link_label: chapter.link_label ? clubCopy(chapter.link_label) : chapter.link_label,
   })),
 )
+const photoStories = computed(() => chapters.value.filter((chapter) => chapter.photo))
 const activeEra = ref(0)
 function chapterYear(chapter: ContentBlock) {
   const match = /^(20\d{2})/u.exec(chapter.title)
@@ -87,8 +89,9 @@ const historyGroups = computed(() =>
 // or removing a chapter must never leave a button pointing at a title prefix.
 const eras = computed(() =>
   historyGroups.value.map((group) => {
-    const chapter = group.chapters[0]!
+    const chapter = group.chapters.find((item) => item.photo) ?? group.chapters[0]!
     return {
+      chapter,
       id: chapter.id,
       year: chapterYear(chapter)?.toString() || 'Клуб',
       period: group.label,
@@ -136,18 +139,21 @@ async function readChapter(id: string) {
           <li><a href="#club-timeline">История клуба</a></li>
           <li><a href="#club-honours-title">Достижения</a></li>
           <li><a href="#club-tournaments">Турниры</a></li>
+          <li v-if="photoStories.length || memoryError || memories.length">
+            <a href="#club-memories">Фотоархив</a>
+          </li>
         </ul>
       </nav>
       <figure class="club-hero__photo">
         <img
-          src="/images/history/sponsor-team.jpeg"
-          alt="Игроки и болельщики Хищных Бобров вместе в университетском спортивном зале"
-          width="1321"
-          height="631"
+          src="/images/photos/club-together.webp"
+          alt="Мужская и женская команды Хищных Бобров вместе с тренером на клубной фотосессии"
+          width="1920"
+          height="1280"
           fetchpriority="high"
           decoding="async"
         />
-        <figcaption>На площадке и рядом с ней.</figcaption>
+        <figcaption>Две команды. Один клуб.</figcaption>
       </figure>
     </section>
     <section class="club-identity" aria-label="Клуб в трёх фактах">
@@ -184,11 +190,16 @@ async function readChapter(id: string) {
           v-if="currentEra"
           id="club-era-panel"
           class="club-era"
+          :class="{ 'club-era--with-photo': currentEra.chapter.photo }"
           aria-live="polite"
           aria-atomic="true"
         >
-          <span class="club-era__year" aria-hidden="true">{{ currentEra.year }}</span>
+          <HistoryPhoto v-if="currentEra.chapter.photo" :chapter="currentEra.chapter" />
+          <span v-else class="club-era__year" aria-hidden="true">{{ currentEra.year }}</span>
           <div :key="currentEra.id" class="club-era__copy">
+            <p v-if="currentEra.chapter.photo" class="eyebrow">
+              {{ currentEra.chapter.subtitle || currentEra.year }}
+            </p>
             <h3>{{ currentEra.title }}</h3>
             <p>{{ currentEra.text }}</p>
             <button class="club-link" type="button" @click="readChapter(currentEra.id)">
@@ -208,10 +219,10 @@ async function readChapter(id: string) {
         <div class="club-team-grid">
           <RouterLink to="/teams/men" class="club-team-link">
             <img
-              src="/images/team-men.webp"
+              src="/images/photos/team-squad.webp"
               alt="Мужская баскетбольная команда ВГУ"
-              width="2560"
-              height="1707"
+              width="1440"
+              height="1081"
               loading="lazy"
               decoding="async"
             />
@@ -219,10 +230,10 @@ async function readChapter(id: string) {
           </RouterLink>
           <RouterLink to="/teams/women" class="club-team-link">
             <img
-              src="/images/team-women.webp"
+              src="/images/photos/women-squad.webp"
               alt="Баскетбольная команда девушек ВГУ"
-              width="2560"
-              height="1707"
+              width="768"
+              height="611"
               loading="lazy"
               decoding="async"
             />
@@ -236,7 +247,7 @@ async function readChapter(id: string) {
     </section>
     <ClubHonours />
     <section
-      v-if="memoryError || memories.length"
+      v-if="photoStories.length || memoryError || memories.length"
       id="club-memories"
       class="section section--light club-memories"
       aria-labelledby="club-memories-title"
@@ -247,7 +258,23 @@ async function readChapter(id: string) {
           <h2 id="club-memories-title">Памятные моменты</h2>
           <p>Фотографии и события, которыми делится команда клуба.</p>
         </div>
-        <AsyncState :pending="memoryPending" :error="memoryError" @retry="loadMemories">
+        <div v-if="photoStories.length" class="club-photo-stories">
+          <article v-for="chapter in photoStories" :key="chapter.id" class="club-photo-story">
+            <HistoryPhoto :chapter="chapter" />
+            <div class="club-photo-story__copy">
+              <h3>{{ chapter.title }}</h3>
+              <button class="club-link" type="button" @click="readChapter(chapter.id)">
+                Читать историю <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </article>
+        </div>
+        <AsyncState
+          v-if="memoryPending || memoryError || memories.length"
+          :pending="memoryPending"
+          :error="memoryError"
+          @retry="loadMemories"
+        >
           <div class="club-memories__grid">
             <figure
               v-for="memory in memories"
@@ -340,13 +367,16 @@ async function readChapter(id: string) {
                   </summary>
                   <div class="club-chapter__body">
                     <p v-if="chapter.subtitle" class="club-chapter__era">{{ chapter.subtitle }}</p>
-                    <p
+                    <template
                       v-for="(paragraph, paragraphIndex) in chapter.body.split(/\n\s*\n/u)"
                       :key="paragraphIndex"
-                      class="prose-text"
                     >
-                      {{ paragraph }}
-                    </p>
+                      <p class="prose-text">{{ paragraph }}</p>
+                      <HistoryPhoto
+                        v-if="paragraphIndex === 0 && chapter.photo"
+                        :chapter="chapter"
+                      />
+                    </template>
                     <a
                       v-if="chapter.link_url"
                       class="club-source"
@@ -372,6 +402,47 @@ async function readChapter(id: string) {
 <style scoped>
 .club-page {
   --club-accent: #ffb5b1;
+}
+.club-photo-stories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  margin-bottom: 32px;
+}
+.club-photo-story {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #d3dfe9;
+  border-radius: 12px;
+  background: white;
+}
+.club-photo-story :deep(.history-photo) {
+  border-radius: 0;
+  background: white;
+}
+.club-photo-story :deep(.history-photo img) {
+  aspect-ratio: 3 / 2;
+  max-height: none;
+  object-fit: contain;
+}
+.club-photo-story__copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px;
+}
+.club-photo-story h3 {
+  margin: 0 0 16px;
+  font-size: clamp(1.4rem, 2.3vw, 1.9rem);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.club-photo-story .club-link {
+  margin-top: auto;
+  color: #953029;
 }
 .club-memories__grid {
   display: grid;
@@ -526,7 +597,9 @@ summary:focus-visible,
 }
 .club-hero__photo {
   position: relative;
-  margin: 0;
+  width: min(960px, calc(100% - var(--page-gutter) * 2));
+  margin: 32px auto 0;
+  border-radius: 14px;
   background: #123751;
   overflow: hidden;
 }
@@ -534,9 +607,7 @@ summary:focus-visible,
   display: block;
   width: 100%;
   height: auto;
-  max-height: 540px;
-  object-fit: cover;
-  object-position: center 58%;
+  object-fit: contain;
   animation: photo-arrive 1.1s ease-out both;
 }
 .club-hero__photo figcaption {
@@ -661,6 +732,19 @@ summary:focus-visible,
     600 clamp(5rem, 13vw, 12rem)/1 'Oswald',
     sans-serif;
   letter-spacing: -0.04em;
+}
+.club-era--with-photo {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  padding: 24px;
+  gap: 32px;
+}
+.club-era--with-photo .eyebrow {
+  color: #953029;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.club-era--with-photo :deep(.history-photo img) {
+  max-height: 360px;
 }
 .club-era h3 {
   max-width: 620px;
@@ -891,6 +975,13 @@ details[open] > summary > .club-disclosure-mark {
   }
 }
 @media (max-width: 700px) {
+  .club-photo-stories {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .club-photo-story__copy {
+    padding: 20px;
+  }
   .club-hero__heading {
     grid-template-columns: 1fr;
     gap: 28px;
@@ -911,9 +1002,8 @@ details[open] > summary > .club-disclosure-mark {
   }
   .club-hero__photo img {
     max-height: none;
-    min-height: 230px;
-    object-fit: cover;
-    object-position: 54% center;
+    min-height: 0;
+    object-fit: contain;
   }
   .club-hero__photo figcaption {
     padding-block: 14px;
@@ -980,6 +1070,9 @@ details[open] > summary > .club-disclosure-mark {
     display: block;
     margin-bottom: 24px;
     font-size: 5rem;
+  }
+  .club-era--with-photo .club-era__copy {
+    margin-top: 24px;
   }
   .club-era h3 {
     font-size: 1.85rem;

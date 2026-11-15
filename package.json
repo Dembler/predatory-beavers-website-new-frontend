@@ -10,6 +10,9 @@
     "dev": "vite",
     "build": "run-p type-check build-only",
     "build-only": "vite build",
+    "build:pages": "npm run type-check && node scripts/build-github-pages.mjs",
+    "test:pages": "node --test scripts/github-pages.test.mjs",
+    "test:pages:browser": "node --test scripts/github-pages-browser.test.mjs",
     "build:prerender": "npm run type-check && node scripts/prerender.mjs",
     "refresh:prerender": "node scripts/prerender-refresh.mjs",
     "test:prerender": "node --test scripts/prerender.test.mjs scripts/prerender-refresh.test.mjs",
@@ -27,6 +30,9 @@
     "format:check": "prettier --check \"src/**/*.{ts,vue,css,json,md}\" \"*.{ts,json,md}\""
   },
   "dependencies": {
+    "@daisigu/vue-liquid-glass": "1.0.4",
+    "@lucide/vue": "1.72.0",
+    "reka-ui": "2.11.0",
     "vue": "^3.5.26",
     "vue-router": "^4.6.4"
   },

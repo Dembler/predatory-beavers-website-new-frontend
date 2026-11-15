@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import ImagePicker from './ImagePicker.vue'
+import ContactEditor from './ContactEditor.vue'
 import AdminTrash from './AdminTrash.vue'
 import { useLoad } from '@/composables/useLoad'
 import { useAuth } from '@/composables/useAuth'
@@ -291,6 +292,8 @@ async function open(row?: AdminRecord, requestedContext?: EditorContext) {
       props.config.defaults[field.key] ??
       (field.type === 'checkbox' ? false : '')
     form.value[field.key] = value as FormValue
+    if (field.type === 'contacts')
+      form.value[field.key] = typeof value === 'string' ? value : JSON.stringify(value || [])
     if (field.type === 'datetime-local' && value) {
       const date = new Date(String(value))
       form.value[field.key] = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
@@ -698,7 +701,9 @@ async function remove() {
                 v-for="field in config.fields"
                 :key="field.key"
                 class="form-field"
-                :class="{ 'form-field--wide': ['textarea', 'image'].includes(field.type || '') }"
+                :class="{
+                  'form-field--wide': ['textarea', 'image', 'contacts'].includes(field.type || ''),
+                }"
               >
                 <template v-if="field.type === 'checkbox'"
                   ><label class="checkbox-label"
@@ -759,6 +764,13 @@ async function remove() {
                     @update:model-value="updateField(field, $event)"
                     @uploaded="emit('media-changed')"
                     @busy="uploads = Math.max(0, uploads + ($event ? 1 : -1))"
+                  />
+                  <ContactEditor
+                    v-else-if="field.type === 'contacts'"
+                    :id="`field-${field.key}`"
+                    :model-value="form[field.key] ?? null"
+                    :disabled="saving"
+                    @update:model-value="updateField(field, $event)"
                   />
                   <input
                     v-else

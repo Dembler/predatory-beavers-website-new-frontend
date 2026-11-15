@@ -17,6 +17,8 @@ Backend ожидается на `http://localhost:8000`; запросы `/api` �
 
 ## Команды
 
+Публикация frontend на GitHub Pages: [настройка API, workflow и маршрутов](deploy/github-pages.md).
+
 ```cmd
 npm run lint:ci
 npm run format:check

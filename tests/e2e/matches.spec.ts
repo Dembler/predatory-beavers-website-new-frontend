@@ -292,7 +292,9 @@ test('calendar loads one bounded page at a time, combines server filters and sep
   await page.getByRole('combobox', { name: 'Статус', exact: true }).click()
   await page.getByRole('option', { name: 'Запланирован', exact: true }).click()
   await expect(page.locator('article.match-card')).toHaveCount(0)
-  await expect(page.getByRole('status')).toContainText('По выбранным фильтрам матчей нет')
+  await expect(page.getByRole('status')).toContainText(
+    'Подтверждённых матчей по выбранным фильтрам в текущем сезоне пока нет',
+  )
   await page.getByRole('combobox', { name: 'Команда', exact: true }).click()
   await page.getByRole('option', { name: 'Все команды', exact: true }).click()
   await expect(page.locator('article.match-card')).toHaveCount(1)

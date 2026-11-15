@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { publicPageUrl, setMetadata, setPageIdentity } from './shared/pageMetadata'
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', component: () => import('./pages/HomePage.vue'), meta: { title: 'Главная' } },
     { path: '/club', component: () => import('./pages/ClubPage.vue'), meta: { title: 'О клубе' } },

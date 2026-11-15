@@ -11,6 +11,20 @@ html {
   scroll-padding-top: calc(var(--header-edge) + 24px);
 }
 
+html,
+body,
+.mobile-menu__links {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.mobile-menu__links::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
 .site-shell {
   display: flex;
   min-height: 100svh;
@@ -72,12 +86,16 @@ main:not(:has(> .home-page)) {
 }
 
 .home-hero {
-  min-height: 620px;
+  min-height: 0;
   align-items: flex-start;
 }
 
 .home-hero__content {
-  padding-block: calc(var(--header-edge) + var(--page-air)) 64px;
+  padding-block: calc(var(--header-edge) + var(--page-air)) 32px;
+}
+
+.home-dashboard {
+  padding-top: 32px;
 }
 
 .team-switch {
@@ -117,11 +135,11 @@ main:not(:has(> .home-page)) {
   }
 
   .home-hero {
-    min-height: 520px;
+    min-height: 0;
   }
 
   .home-hero__content {
-    padding-block: var(--page-air) 48px;
+    padding-block: var(--page-air) 28px;
   }
 }
 
@@ -142,15 +160,15 @@ main:not(:has(> .home-page)) {
   }
 
   .home-hero {
-    min-height: 440px;
+    min-height: 0;
   }
 
   .home-hero__content {
-    padding-top: 40px;
+    padding-block: 32px 24px;
   }
 
   .home-dashboard {
-    padding-block: 36px;
+    padding-block: 24px 36px;
   }
 
   .dashboard-grid,

@@ -1523,6 +1523,8 @@ export interface components {
       counts: components['schemas']['CalendarCounts']
       /** Seasons */
       seasons: string[]
+      /** Current Season */
+      current_season: string
       /** Default Season */
       default_season: string
       /** Selected Season */
@@ -1607,6 +1609,15 @@ export interface components {
       /** Active */
       active?: boolean | null
     }
+    /** ContentContact */
+    ContentContact: {
+      /** Label */
+      label: string
+      /** Value */
+      value: string
+      /** Url */
+      url?: string | null
+    }
     /** ContentCreate */
     ContentCreate: {
       section: components['schemas']['ContentSection']
@@ -1620,6 +1631,10 @@ export interface components {
       link_url?: string | null
       /** Link Label */
       link_label?: string | null
+      /** Photo Asset Id */
+      photo_asset_id?: string | null
+      /** Contacts */
+      contacts?: components['schemas']['ContentContact'][]
       /**
        * Sort Order
        * @default 0
@@ -1654,6 +1669,11 @@ export interface components {
       link_url?: string | null
       /** Link Label */
       link_label?: string | null
+      /** Photo Asset Id */
+      photo_asset_id?: string | null
+      photo?: components['schemas']['MediaAssetRead'] | null
+      /** Contacts */
+      contacts?: components['schemas']['ContentContact'][]
       /** Sort Order */
       sort_order: number
       /** Active */
@@ -1695,6 +1715,10 @@ export interface components {
       link_url?: string | null
       /** Link Label */
       link_label?: string | null
+      /** Photo Asset Id */
+      photo_asset_id?: string | null
+      /** Contacts */
+      contacts?: components['schemas']['ContentContact'][]
       /** Sort Order */
       sort_order?: number | null
       /** Active */
@@ -1730,6 +1754,7 @@ export interface components {
        */
       generated_at: string
       next_match: components['schemas']['MatchRead'] | null
+      next_result?: components['schemas']['ArchiveResultRead'] | null
       /** Recent Results */
       recent_results: components['schemas']['MatchRead'][]
       /** Teams */

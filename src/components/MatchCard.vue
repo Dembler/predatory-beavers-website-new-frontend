@@ -292,7 +292,7 @@ const fullDateLabel = computed(
       </div>
     </div>
 
-    <footer class="match-card__meta">
+    <footer v-if="showMetaDate || match.venue" class="match-card__meta">
       <span v-if="showMetaDate" class="match-card__meta-item">{{ fullDateLabel }}</span>
       <span v-if="match.venue" class="match-card__meta-item">{{ match.venue.name }}</span>
     </footer>
@@ -464,7 +464,6 @@ const fullDateLabel = computed(
 .match-card__head {
   flex-wrap: wrap;
   gap: 12px;
-  padding: 20px 24px 0;
 }
 .match-card__tournament {
   flex: 1 1 180px;
@@ -477,10 +476,16 @@ const fullDateLabel = computed(
   overflow-wrap: anywhere;
 }
 .match-card:not(.match-card--row) .match-card__main {
-  min-height: 180px;
+  min-height: 0;
   grid-template-columns: minmax(0, 1fr) minmax(120px, auto) minmax(0, 1fr);
   gap: 18px;
-  padding: 26px 24px;
+  padding: 24px;
+}
+.match-card:not(.match-card--row) .match-card__head {
+  padding: 24px 24px 0;
+}
+.match-card:not(.match-card--row) .match-card__meta {
+  padding: 12px 24px 24px;
 }
 .match-card:not(.match-card--row) .match-card__logo {
   width: 72px;
@@ -686,7 +691,7 @@ const fullDateLabel = computed(
   .match-card__stage {
     margin-inline: 18px;
   }
-  .match-card__head,
+  .match-card:not(.match-card--row) .match-card__head,
   .match-card--featured .match-card__head {
     padding: 18px 18px 0;
   }
@@ -694,7 +699,10 @@ const fullDateLabel = computed(
     min-height: 0;
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
-    padding: 8px 18px 18px;
+    padding: 18px;
+  }
+  .match-card:not(.match-card--row) .match-card__meta {
+    padding: 10px 18px 18px;
   }
   .match-card:not(.match-card--row) .match-card__team {
     display: grid;

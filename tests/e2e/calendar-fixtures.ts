@@ -80,6 +80,9 @@ export async function mockCalendar(
       typeof options.defaultSeason === 'function'
         ? options.defaultSeason(url)
         : (options.defaultSeason ?? seasons[0] ?? 'all')
+    if (defaultSeason !== 'all' && !seasons.includes(defaultSeason)) {
+      seasons.unshift(defaultSeason)
+    }
     const selectedSeason = query.get('season') ?? defaultSeason
     const rows = fixtures
       .filter(
@@ -103,6 +106,7 @@ export async function mockCalendar(
       total_pages: totalPages,
       counts,
       seasons,
+      current_season: '2026-2027',
       default_season: defaultSeason,
       selected_season: selectedSeason,
       at: query.get('at') ?? options.at ?? '2026-11-07T12:00:00Z',

@@ -1,6 +1,7 @@
 import type { Page } from './types'
+import { sitePath } from './sitePath'
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
 let unauthorizedHandler: (() => void) | undefined
 
 export function onUnauthorized(handler: () => void) {
@@ -105,5 +106,6 @@ export async function allPages<T>(path: string): Promise<T[]> {
 
 export function mediaUrl(path?: string | null): string | undefined {
   if (!path) return undefined
+  if (path.startsWith('/images/') || path.startsWith('/fonts/')) return sitePath(path)
   return /^https?:\/\//i.test(path) ? path : `${apiBase}${path}`
 }

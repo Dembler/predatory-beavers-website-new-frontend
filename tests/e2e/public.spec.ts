@@ -212,7 +212,7 @@ test('mobile navigation opens, follows a link and closes', async ({ page }, test
   test.skip(testInfo.project.name !== 'mobile', 'Mobile navigation is tested with a touch viewport')
   await openPage(page, '/')
   await page.getByRole('button', { name: 'Открыть меню', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'Всё о клубе' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Меню клуба' })).toBeVisible()
   await page
     .getByRole('navigation', { name: 'Все разделы', exact: true })
     .getByRole('link', { name: /^Правила/ })
@@ -347,7 +347,7 @@ test('mobile menu, bottom navigation, focus and contact anchors work without an 
   await expect(page.locator('.intro-reveal')).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Быстрый переход' })).toBeVisible()
   const trigger = page.getByRole('button', { name: 'Открыть меню', exact: true })
-  const menu = page.getByRole('dialog', { name: 'Всё о клубе' })
+  const menu = page.getByRole('dialog', { name: 'Меню клуба' })
   for (const [label, path] of [
     ['Матчи', '/matches'],
     ['Таблица', '/standings'],

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import MatchCard from '@/components/MatchCard.vue'
+import HistoricalMatchCard from '@/components/HistoricalMatchCard.vue'
 import RecentResults from '@/components/RecentResults.vue'
 import ClubHonours from '@/components/ClubHonours.vue'
 import { useLoad } from '@/composables/useLoad'
@@ -22,12 +23,24 @@ const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recen
 <template>
   <div class="home-page">
     <section class="home-hero">
-      <img
-        class="home-hero__photo"
-        src="/images/team-community.webp"
-        alt="Команда и болельщики Хищных Бобров"
-      />
-      <div class="home-hero__shade"></div>
+      <picture>
+        <source
+          media="(min-width: 1101px)"
+          srcset="/images/photos/club-hero-wide.webp"
+          width="1920"
+          height="1280"
+        />
+        <img
+          class="home-hero__photo"
+          src="/images/photos/club-emotions.webp"
+          alt="Игроки Хищных Бобров с баскетбольными мячами на клубной фотосессии"
+          width="1920"
+          height="1403"
+          fetchpriority="high"
+          decoding="async"
+        />
+      </picture>
+      <div class="home-hero__shade" aria-hidden="true"></div>
       <div class="container home-hero__content">
         <h1><span>Мы —</span><br />Хищные<br />Бобры.</h1>
         <p class="home-hero__lead">
@@ -53,7 +66,7 @@ const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recen
                 {{
                   home?.next_match?.status === 'live'
                     ? 'Сейчас на площадке'
-                    : home?.next_match
+                    : home?.next_match || home?.next_result
                       ? 'Ближайший матч'
                       : featuredMatch
                         ? 'Последний матч'
@@ -72,11 +85,12 @@ const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recen
           <AsyncState
             :pending="pending"
             :error="error"
-            :empty="!featuredMatch"
+            :empty="!featuredMatch && !home?.next_result"
             empty-text="Ближайший матч пока не назначен."
             @retry="load"
           >
-            <MatchCard v-if="featuredMatch" :match="featuredMatch" featured />
+            <HistoricalMatchCard v-if="home?.next_result" :result="home.next_result" featured />
+            <MatchCard v-else-if="featuredMatch" :match="featuredMatch" featured />
           </AsyncState>
         </div>
 
@@ -102,7 +116,7 @@ const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recen
         <div class="team-grid team-grid--feature">
           <RouterLink class="team-card" to="/teams/men">
             <img
-              src="/images/team-men.webp"
+              src="/images/photos/team-squad.webp"
               alt="Мужская команда Хищных Бобров"
               loading="lazy"
               decoding="async"
@@ -114,7 +128,7 @@ const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recen
           </RouterLink>
           <RouterLink class="team-card" to="/teams/women">
             <img
-              src="/images/team-women.webp"
+              src="/images/photos/women-squad.webp"
               alt="Команда девушек Хищных Бобров"
               loading="lazy"
               decoding="async"
@@ -155,6 +169,24 @@ const featuredMatch = computed(() => home.value?.next_match ?? home.value?.recen
 </template>
 
 <style scoped>
+.home-hero__photo {
+  object-position: center 20%;
+}
+@media (min-width: 1101px) {
+  .home-hero__photo {
+    object-position: center 5%;
+  }
+}
+@media (max-width: 700px) {
+  .home-hero__photo {
+    object-position: 54% 20%;
+  }
+  .hero-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+  }
+}
 .dashboard-main :deep(.skeleton-grid) {
   grid-template-columns: 1fr;
 }

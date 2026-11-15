@@ -120,7 +120,10 @@ const seasonOptions = computed(() => {
     ...Array.from(values)
       .sort()
       .reverse()
-      .map((value) => ({ value, label: seasonLabel(value) })),
+      .map((value) => ({
+        value,
+        label: `${seasonLabel(value)}${value === calendar.data.value?.current_season ? ' · текущий' : ''}`,
+      })),
   ]
 })
 const hasFilters = computed(
@@ -149,9 +152,9 @@ const statusOptions = [
 ]
 const disciplineOptions = [
   { value: 'all', label: 'Все форматы' },
-  { value: '5x5', label: '5×5 — классический баскетбол' },
-  { value: '3x3', label: '3×3 — на одно кольцо' },
-  { value: 'phygital', label: 'Фиджитал-баскетбол' },
+  { value: '3x3', label: '3×3' },
+  { value: '5x5', label: '5×5' },
+  { value: 'phygital', label: 'Фиджитал' },
 ]
 const total = computed(() => calendar.data.value?.total ?? 0)
 const totalPages = computed(() => calendar.data.value?.total_pages || 1)
@@ -174,7 +177,11 @@ const groups = computed(() => {
       }
       return {
         section,
-        label: labels[section],
+        label:
+          section === 'results' &&
+          entries.some((entry) => entry.result && !entry.result.opponent_name)
+            ? 'Результаты матчей и турниров'
+            : labels[section],
         entries,
         count: calendar.data.value?.counts[section] ?? 0,
         seasons: Array.from(seasons, ([name, items]) => ({ name, items })),
@@ -231,7 +238,23 @@ function changePage(value: number) {
           </button>
         </p>
         <div id="calendar-results">
+          <div
+            v-if="
+              !calendar.pending.value &&
+              !calendar.error.value &&
+              !total &&
+              season === calendar.data.value?.current_season
+            "
+            class="state-panel calendar-empty"
+            role="status"
+          >
+            <p>Подтверждённых матчей по выбранным фильтрам в текущем сезоне пока нет.</p>
+            <button class="btn btn--outline" type="button" @click="season = 'all'">
+              Все сезоны
+            </button>
+          </div>
           <AsyncState
+            v-else
             :pending="calendar.pending.value"
             :error="calendar.error.value"
             :empty="!total"

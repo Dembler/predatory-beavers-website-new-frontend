@@ -6,7 +6,7 @@ async function mainNavigation(page: Page, mobile: boolean) {
   await expect(page.locator('main h1')).toBeVisible()
   if (mobile) {
     await page.getByRole('button', { name: 'Открыть меню', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: 'Всё о клубе', exact: true })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Меню клуба', exact: true })).toBeVisible()
   }
   return page.getByRole('navigation', {
     name: mobile ? 'Все разделы' : 'Основная навигация',
@@ -180,7 +180,7 @@ test('floating header and menu targets remain inside the viewport around the bre
   test.skip(testInfo.project.name !== 'desktop', 'Intermediate desktop widths')
   await openPage(page, '/club')
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
-  for (const width of [320, 390, 768, 900, 901, 1024, 1150, 1280, 1440, 1920]) {
+  for (const width of [320, 390, 430, 768, 900, 901, 1024, 1150, 1280, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 })
     const nav = page.getByRole('navigation', { name: 'Основная навигация', exact: true })
     const trigger = page.getByRole('button', { name: 'Открыть меню', exact: true })
@@ -296,14 +296,18 @@ test('desktop team dropdown supports keyboard navigation and closes after choosi
   ).toHaveCount(1)
 })
 
-test('mobile card keeps focus, locks background, closes on navigation and restores its trigger', async ({
+test('mobile panel keeps focus, locks background, closes on navigation and restores its trigger', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'Touch navigation')
   await openPage(page, '/club')
   const trigger = page.getByRole('button', { name: 'Открыть меню', exact: true })
+  await expect(trigger).toHaveCount(1)
+  await expect(page.locator('.site-header .menu-toggle')).toHaveCount(0)
+  const bottom = page.getByRole('navigation', { name: 'Быстрый переход' })
+  await expect(bottom.getByRole('link')).toHaveCount(3)
   await trigger.click()
-  const menu = page.getByRole('dialog', { name: 'Всё о клубе', exact: true })
+  const menu = page.getByRole('dialog', { name: 'Меню клуба', exact: true })
   await expect(menu).toBeVisible()
   const destinations = await menu
     .getByRole('link')
@@ -322,9 +326,10 @@ test('mobile card keeps focus, locks background, closes on navigation and restor
     ]),
   )
   expect(new Set(destinations).size).toBe(destinations.length)
+  await expect(menu.locator('a > svg.lucide')).toHaveCount(destinations.length)
+  await expect(menu).not.toContainText(/[↗→›]/u)
   await expect(menu.getByRole('link', { name: /^Команда девушек/ })).toBeVisible()
-  await expect(page.locator('html')).toHaveClass(/navigation-open/)
-  await expect(page.locator('html')).toHaveCSS('overflow', 'hidden')
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden')
   const close = menu.getByRole('button', { name: 'Закрыть меню', exact: true })
   await expect(close).toBeFocused()
   await page.keyboard.press('Shift+Tab')
@@ -334,23 +339,42 @@ test('mobile card keeps focus, locks background, closes on navigation and restor
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
   await expect(trigger).toBeFocused()
-  await expect(page.locator('html')).not.toHaveClass(/navigation-open/)
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden')
   await trigger.click()
   await menu.getByRole('link', { name: /^Команда девушек/ }).click()
   await expect(page).toHaveURL(/\/teams\/women$/)
   await expect(menu).toBeHidden()
-  const bottom = page.getByRole('navigation', { name: 'Быстрый переход' })
   await bottom.getByRole('link', { name: 'Команды', exact: true }).click()
   await expect(page).toHaveURL(/\/teams\/women$/)
-  const bottomTrigger = bottom.getByRole('button', { name: 'Меню — все разделы', exact: true })
+  const bottomTrigger = bottom.getByRole('button', { name: 'Открыть меню', exact: true })
   await bottomTrigger.click()
   await expect(menu).toBeVisible()
   await close.click()
   await expect(bottomTrigger).toBeFocused()
+  for (const [width, height] of [
+    [320, 568],
+    [390, 844],
+    [430, 932],
+  ]) {
+    await page.setViewportSize({ width: width!, height: height! })
+    await trigger.click()
+    const box = await menu.boundingBox()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width!)
+    expect(box!.y).toBe(0)
+    expect(box!.height).toBe(height!)
+    await menu.getByRole('link', { name: /^Управление сайтом/ }).focus()
+    await expect(menu.getByRole('link', { name: /^Управление сайтом/ })).toBeInViewport()
+    const admin = await menu.getByRole('link', { name: /^Управление сайтом/ }).boundingBox()
+    expect(admin!.y + admin!.height).toBeGreaterThan(height! - 60)
+    await page.keyboard.press('Escape')
+    await expect(trigger).toBeFocused()
+    await assertNoHorizontalOverflow(page)
+  }
   await trigger.click()
   await page.setViewportSize({ width: 1024, height: 900 })
   await expect(menu).toBeHidden()
-  await expect(page.locator('html')).not.toHaveClass(/navigation-open/)
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden')
   await assertNoHorizontalOverflow(page)
 })
 

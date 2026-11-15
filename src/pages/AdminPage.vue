@@ -3,9 +3,11 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminCollection from '@/components/admin/AdminCollection.vue'
 import AdminMedia from '@/components/admin/AdminMedia.vue'
+import AdminSportsSync from '@/components/admin/AdminSportsSync.vue'
 import { useAuth } from '@/composables/useAuth'
 import { allPages, apiRequest } from '@/shared/api'
 import { errorMessage, type AdminConfig, type AdminField, type AdminRecord } from '@/shared/admin'
+import { safeContactUrl } from '@/shared/contactLinks'
 import type {
   ApiResponse,
   Competition,
@@ -47,6 +49,7 @@ const tabs = [
   { key: 'viewing_tips', label: 'Советы болельщикам' },
   { key: 'competitions', label: 'Турниры' },
   { key: 'venues', label: 'Залы' },
+  { key: 'imports', label: 'Обновление данных' },
 ]
 const tab = computed(() =>
   tabs.some((item) => item.key === route.query.tab) ? String(route.query.tab) : 'players',
@@ -64,6 +67,7 @@ const navigationGroups = [
     keys: ['history', 'rules', 'player_roles', 'viewing_tips', 'contact_channels'],
   },
   { title: 'Медиатека', keys: ['media'] },
+  { title: 'Автоматизация', keys: ['imports'] },
 ].map((group) => ({
   ...group,
   items: group.keys.map((key) => tabs.find((item) => item.key === key)!),
@@ -726,13 +730,32 @@ const config = computed((): AdminConfig => {
       hint: content.subtitleHint,
     })
   }
+  if (section === 'history') {
+    fields.push(
+      {
+        key: 'photo_asset_id',
+        label: 'Фотография события',
+        type: 'image',
+        hint: 'Фото появится в главе истории. Подпись берётся из описания фотографии в медиатеке.',
+      },
+      { key: 'link_url', label: 'Источник события и фотографии', maxLength: 2048 },
+      { key: 'link_label', label: 'Название источника', maxLength: 100 },
+    )
+  }
   if (content.links) {
+    if (section === 'captains')
+      fields.push({
+        key: 'photo_asset_id',
+        label: 'Фотография капитана',
+        type: 'image',
+        hint: 'Выберите фото из медиатеки или загрузите новое. Фотографию можно заменить или убрать.',
+      })
     fields.push(
       {
         key: 'link_url',
         label: 'Ссылка',
         maxLength: 2048,
-        hint: 'Полный адрес с https:// или http://. Пустое поле скрывает ссылку на карточке.',
+        hint: 'Адрес с https://, http://, tel: или mailto:. Пустое поле скрывает ссылку.',
       },
       {
         key: 'link_label',
@@ -741,6 +764,12 @@ const config = computed((): AdminConfig => {
         hint: 'Например: Открыть канал. Если оставить пустым, появится «Открыть».',
       },
     )
+    fields.push({
+      key: 'contacts',
+      label: 'Контакты и ссылки',
+      type: 'contacts',
+      hint: 'Добавьте телефон, почту, соцсети или другие ссылки. Можно оставить контакт без ссылки.',
+    })
   }
   fields.push({ key: 'active', label: 'Опубликовать на сайте', type: 'checkbox' })
   return {
@@ -762,7 +791,7 @@ const config = computed((): AdminConfig => {
     query: `section=${section}`,
     description:
       section === 'history'
-        ? 'Главы истории на странице клуба и на её шкале событий. Абзацы разделяйте пустой строкой.'
+        ? 'Главы истории и фотографии событий на странице клуба. Абзацы разделяйте пустой строкой.'
         : 'Тексты появятся на публичной странице после сохранения. Абзацы разделяйте пустой строкой.',
     filters: [
       {
@@ -782,6 +811,9 @@ const config = computed((): AdminConfig => {
       active: true,
       ...(content.subtitleLabel ? { subtitle: null } : {}),
       ...(content.links ? { link_url: null, link_label: null } : {}),
+      ...(content.links ? { contacts: '[]' } : {}),
+      ...(['captains', 'history'].includes(section) ? { photo_asset_id: null } : {}),
+      ...(section === 'history' ? { link_url: null, link_label: null } : {}),
     },
     fields,
     columns: [
@@ -790,15 +822,32 @@ const config = computed((): AdminConfig => {
       { label: 'Публикация', value: publication },
     ],
     prepare: (form) => {
-      if (content.links && form.link_url) {
-        try {
-          const url = new URL(String(form.link_url))
-          if (!['http:', 'https:'].includes(url.protocol)) throw new Error()
-        } catch {
-          throw new Error('Укажите корректную ссылку с https:// или http://.')
-        }
+      if (
+        (content.links || section === 'history') &&
+        form.link_url &&
+        !safeContactUrl(String(form.link_url))
+      )
+        throw new Error('Укажите корректную ссылку с https://, http://, tel: или mailto:.')
+      if (!content.links) return form
+      const contacts = JSON.parse(String(form.contacts || '[]')) as {
+        label: string
+        value: string
+        url: string | null
+      }[]
+      for (const contact of contacts) {
+        if (!contact.label.trim() || !contact.value.trim())
+          throw new Error('Заполните название и значение каждого контакта.')
+        if (contact.url && !safeContactUrl(contact.url.trim()))
+          throw new Error('Проверьте ссылку контакта: разрешены https://, http://, tel: и mailto:.')
       }
-      return form
+      return {
+        ...form,
+        contacts: contacts.map((c) => ({
+          label: c.label.trim(),
+          value: c.value.trim(),
+          url: c.url?.trim() || null,
+        })),
+      }
     },
   }
 })
@@ -923,6 +972,7 @@ const config = computed((): AdminConfig => {
               </button>
             </div>
             <AdminMedia v-if="tab === 'media'" @changed="refreshMedia" />
+            <AdminSportsSync v-else-if="tab === 'imports'" />
             <AdminCollection
               v-else
               :key="tab"

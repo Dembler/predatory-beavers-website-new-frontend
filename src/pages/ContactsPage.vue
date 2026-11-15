@@ -2,8 +2,10 @@
 import { computed, ref } from 'vue'
 import AsyncState from '@/components/AsyncState.vue'
 import AppSelect from '@/components/AppSelect.vue'
+import ContactMethods from '@/components/ContactMethods.vue'
 import { useLoad } from '@/composables/useLoad'
-import { allPages, apiRequest } from '@/shared/api'
+import { allPages, apiRequest, mediaUrl } from '@/shared/api'
+import { safeContactUrl, isWebContact } from '@/shared/contactLinks'
 import { clubCopy } from '@/shared/clubCopy'
 import type { ApiResponse, ContentBlock, Venue } from '@/shared/types'
 
@@ -121,14 +123,15 @@ function initials(name: string) {
                 <h3>{{ channel.title }}</h3>
                 <p class="prose-text">{{ channel.body }}</p>
                 <a
-                  v-if="channel.link_url"
+                  v-if="safeContactUrl(channel.link_url)"
                   class="text-link"
-                  :href="channel.link_url"
-                  target="_blank"
+                  :href="safeContactUrl(channel.link_url)"
+                  :target="isWebContact(channel.link_url) ? '_blank' : undefined"
                   rel="noopener noreferrer"
                 >
                   {{ channel.link_label || 'Открыть' }} <span aria-hidden="true">↗</span>
                 </a>
+                <ContactMethods :contacts="channel.contacts ?? []" />
               </article>
             </div>
           </AsyncState>
@@ -146,23 +149,43 @@ function initials(name: string) {
             @retry="loadCaptains"
           >
             <div class="club-captains">
-              <article v-for="(captain, index) in captains" :key="captain.id" class="club-captain">
-                <div class="club-captain__identity">
-                  <span class="club-captain__index" aria-hidden="true">{{
-                    String(index + 1).padStart(2, '0')
-                  }}</span>
-                  <h3>{{ captain.title }}</h3>
+              <article
+                v-for="(captain, index) in captains"
+                :key="captain.id"
+                class="club-captain"
+                :class="{ 'club-captain--with-photo': captain.photo }"
+              >
+                <img
+                  v-if="captain.photo"
+                  class="club-captain__photo"
+                  :src="mediaUrl(captain.photo.content_url)"
+                  :alt="captain.photo.alt_text || captain.title"
+                  loading="lazy"
+                  decoding="async"
+                  :width="captain.photo.width || 480"
+                  :height="captain.photo.height || 480"
+                />
+                <div class="club-captain__details">
+                  <div class="club-captain__identity">
+                    <span class="club-captain__index" aria-hidden="true">{{
+                      String(index + 1).padStart(2, '0')
+                    }}</span>
+                    <h3>{{ captain.title }}</h3>
+                  </div>
+                  <p class="club-captain__team">{{ captain.body }}</p>
+                  <p v-if="captain.subtitle" class="club-captain__subtitle">
+                    {{ captain.subtitle }}
+                  </p>
+                  <a
+                    v-if="safeContactUrl(captain.link_url)"
+                    class="text-link"
+                    :href="safeContactUrl(captain.link_url)"
+                    :target="isWebContact(captain.link_url) ? '_blank' : undefined"
+                    rel="noopener noreferrer"
+                    >{{ captain.link_label || 'Подробнее' }} <span aria-hidden="true">↗</span></a
+                  >
+                  <ContactMethods :contacts="captain.contacts ?? []" />
                 </div>
-                <p class="club-captain__team">{{ captain.body }}</p>
-                <p v-if="captain.subtitle" class="club-captain__subtitle">{{ captain.subtitle }}</p>
-                <a
-                  v-if="captain.link_url"
-                  class="text-link"
-                  :href="captain.link_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >{{ captain.link_label || 'Подробнее' }} <span aria-hidden="true">↗</span></a
-                >
               </article>
             </div>
           </AsyncState>
@@ -340,14 +363,33 @@ function initials(name: string) {
   gap: 32px;
 }
 .club-captain {
+  display: grid;
   min-width: 0;
+  align-items: start;
+  gap: 24px;
   padding: 28px 0 0;
   border-top: 3px solid var(--navy);
+}
+.club-captain--with-photo {
+  grid-template-columns: clamp(144px, 16vw, 200px) minmax(0, 1fr);
+}
+.club-captain__details {
+  min-width: 0;
 }
 .club-captain__identity {
   display: flex;
   align-items: baseline;
   gap: 18px;
+}
+.club-captain__photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 12px;
+  background: #e6edf3;
 }
 .club-captain__index {
   flex-shrink: 0;
@@ -538,6 +580,9 @@ function initials(name: string) {
   }
 }
 @media (max-width: 800px) {
+  .club-captains {
+    grid-template-columns: 1fr;
+  }
   .contact-channels {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -596,7 +641,19 @@ function initials(name: string) {
     gap: 32px;
   }
   .club-captain {
+    gap: 18px;
     padding-top: 20px;
+  }
+  .club-captain--with-photo {
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+  .club-captain__identity {
+    gap: 10px;
+  }
+  .club-captain__team,
+  .club-captain__subtitle,
+  .club-captain .text-link {
+    margin-left: 0;
   }
   .club-captain__team {
     margin-top: 12px;

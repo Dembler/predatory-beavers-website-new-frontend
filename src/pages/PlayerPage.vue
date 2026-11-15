@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import PlayerAverages from '@/components/PlayerAverages.vue'
 import { useLoad } from '@/composables/useLoad'
+import { useLiveRefresh } from '@/composables/useLiveRefresh'
 import { rememberTeam } from '@/composables/useTeamPreference'
 import { ApiError, apiRequest } from '@/shared/api'
 import { setMetadata, setPageIdentity } from '@/shared/pageMetadata'
@@ -18,7 +19,7 @@ watch(
     brokenPhoto.value = false
   },
 )
-const { data, pending, error, load } = useLoad(async () => {
+const { data, pending, error, load, refresh } = useLoad(async () => {
   try {
     return await apiRequest<ApiResponse<AsbPlayerProfile>>(
       `/api/v1/asb-roster/${category.value}/players/${route.params.id}`,
@@ -29,6 +30,7 @@ const { data, pending, error, load } = useLoad(async () => {
     throw cause
   }
 }, [() => route.params.id, category])
+useLiveRefresh(refresh)
 const profile = computed(() => data.value?.data)
 const player = computed(() =>
   profile.value?.is_current_season && profile.value.status === 'published'

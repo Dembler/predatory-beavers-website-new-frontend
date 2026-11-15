@@ -4,15 +4,17 @@ import { useRoute, RouterLink } from 'vue-router'
 import AsyncState from '@/components/AsyncState.vue'
 import PlayerAverages from '@/components/PlayerAverages.vue'
 import { useLoad } from '@/composables/useLoad'
+import { useLiveRefresh } from '@/composables/useLiveRefresh'
 import { rememberTeam } from '@/composables/useTeamPreference'
 import { apiRequest, mediaUrl } from '@/shared/api'
+import { sitePath } from '@/shared/sitePath'
 import type { ApiResponse, Page, Player } from '@/shared/types'
 import { initials, seasonLabel, type AsbRoster } from '@/shared/roster'
 const route = useRoute()
 const category = computed(() => (route.params.category === 'women' ? 'women' : 'men'))
 watch(category, rememberTeam, { immediate: true })
 const title = computed(() => (category.value === 'men' ? 'Мужская команда' : 'Команда девушек'))
-const { data, pending, error, load } = useLoad(
+const { data, pending, error, load, refresh } = useLoad(
   () => apiRequest<ApiResponse<AsbRoster>>(`/api/v1/asb-roster/${category.value}`),
   [category],
 )
@@ -26,6 +28,7 @@ const {
   pending: localPending,
   error: localError,
   load: loadLocal,
+  refresh: refreshLocal,
 } = useLoad(
   () =>
     apiRequest<Page<Player>>(
@@ -34,6 +37,7 @@ const {
   [category, localPage],
 )
 const localPlayers = computed(() => localData.value?.items ?? [])
+useLiveRefresh(() => Promise.all([refresh(), refreshLocal()]))
 const localTotalPages = computed(() => localData.value?.total_pages ?? 1)
 const brokenPhotos = ref(new Set<string>())
 function photoFailed(id: string) {
@@ -112,7 +116,9 @@ function photoFailed(id: string) {
             </template>
             <div v-else class="roster-waiting" role="status">
               <img
-                :src="category === 'men' ? '/images/team-men.webp' : '/images/team-women.webp'"
+                :src="
+                  sitePath(category === 'men' ? '/images/team-men.webp' : '/images/team-women.webp')
+                "
                 alt=""
                 loading="lazy"
               />

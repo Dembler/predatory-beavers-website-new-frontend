@@ -12,6 +12,7 @@ export interface AdminField {
     | 'select'
     | 'checkbox'
     | 'image'
+    | 'contacts'
   required?: boolean
   maxLength?: number
   min?: number | string

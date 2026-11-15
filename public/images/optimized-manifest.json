@@ -33,13 +33,68 @@
     "sourceSha256": "8bd23f23bb2a24d526766db5689c733208f5d5c791f22bb3364bcc3642893ee8"
   },
   {
+    "source": "assets/source-images/photos/team-squad.jpg",
+    "output": "/images/photos/team-squad.webp",
+    "width": 1440,
+    "height": 1081,
+    "alpha": false,
+    "sourceBytes": 431123,
+    "outputBytes": 174744,
+    "savedPercent": 59.5,
+    "sourceSha256": "66fbe79736f749810afb4cb838446552be99d68fefe2362923377742204a02a4"
+  },
+  {
+    "source": "assets/source-images/photos/women-squad.jpg",
+    "output": "/images/photos/women-squad.webp",
+    "width": 768,
+    "height": 611,
+    "alpha": false,
+    "sourceBytes": 53498,
+    "outputBytes": 52262,
+    "savedPercent": 2.3,
+    "sourceSha256": "e0310a8f1f9e36e40c068434cf4aafd5da18195af1c57ada6a992acb9a77f6cb"
+  },
+  {
+    "source": "assets/source-images/photos/club-emotions.jpg",
+    "output": "/images/photos/club-emotions.webp",
+    "width": 1920,
+    "height": 1403,
+    "alpha": false,
+    "sourceBytes": 394788,
+    "outputBytes": 249562,
+    "savedPercent": 36.8,
+    "sourceSha256": "d211cf02dd959739849d52d39a0007850aceb717f3a9af31bf9946b531c10a4a"
+  },
+  {
+    "source": "assets/source-images/photos/club-together.jpg",
+    "output": "/images/photos/club-together.webp",
+    "width": 1920,
+    "height": 1280,
+    "alpha": false,
+    "sourceBytes": 448661,
+    "outputBytes": 261760,
+    "savedPercent": 41.7,
+    "sourceSha256": "b1a24c6976475b79142fcec33af90afaec135174cac6a3f6689d784b032083a3"
+  },
+  {
+    "source": "assets/source-images/photos/club-hero-wide.jpg",
+    "output": "/images/photos/club-hero-wide.webp",
+    "width": 1920,
+    "height": 1280,
+    "alpha": false,
+    "sourceBytes": 527000,
+    "outputBytes": 326756,
+    "savedPercent": 38.0,
+    "sourceSha256": "8ade8de634f7cea1e2c5817b4a9262bbe10a81bddcf3b934df30009af0a2b759"
+  },
+  {
     "source": "assets/source-images/brand/club-emblem.png",
     "output": "/images/brand/club-emblem.webp",
     "width": 2418,
     "height": 2051,
     "alpha": true,
     "sourceBytes": 659825,
-    "outputBytes": 188322,
+    "outputBytes": 187978,
     "savedPercent": 71.5,
     "sourceSha256": "5466479a93d2caaefbcef1a62899c50b1003ee28c957f9c70d5433b971263652"
   }

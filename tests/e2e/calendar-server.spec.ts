@@ -14,6 +14,8 @@ test('real calendar API returns a bounded typed page without network mocks', asy
   expect(Object.values(feed.counts).reduce((sum, count) => sum + count, 0)).toBe(feed.total)
   expect(Number.isFinite(Date.parse(feed.at))).toBe(true)
   expect(feed.seasons).toContain(feed.default_season)
+  expect(feed.seasons).toContain(feed.current_season)
+  expect(feed.default_season).toBe(feed.current_season)
   for (const entry of feed.items) {
     expect(['calendar', 'archive']).toContain(entry.kind)
     expect(['upcoming', 'changed', 'results', 'awaiting']).toContain(entry.section)

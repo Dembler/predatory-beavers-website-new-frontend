@@ -1,3 +1,5 @@
+import { sitePath } from './sitePath'
+
 export function setMetadata(attribute: 'name' | 'property', key: string, value: string) {
   let tag = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`)
   if (!tag) {
@@ -31,5 +33,5 @@ export function publicPageUrl(path: string): string {
       // A malformed optional deployment value must not break navigation.
     }
   }
-  return new URL(path, origin).href
+  return new URL(sitePath(path), origin).href
 }

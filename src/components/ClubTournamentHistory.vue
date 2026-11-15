@@ -112,8 +112,8 @@ function plural(value: number, one: string, few: string, many: string) {
           label="Формат турнира"
           :options="[
             { value: 'all', label: 'Все форматы' },
-            { value: '5x5', label: 'Баскетбол 5×5' },
-            { value: '3x3', label: 'Баскетбол 3×3' },
+            { value: '3x3', label: '3×3' },
+            { value: '5x5', label: '5×5' },
             { value: 'phygital', label: 'Фиджитал' },
           ]"
         />

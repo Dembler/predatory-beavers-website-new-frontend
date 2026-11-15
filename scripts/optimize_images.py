@@ -17,6 +17,11 @@ TARGETS = (
     ("team-community.jpg", 1920),
     ("team-men.jpg", 1440),
     ("team-women.jpg", 1440),
+    ("photos/team-squad.jpg", 1440),
+    ("photos/women-squad.jpg", 1440),
+    ("photos/club-emotions.jpg", 1920),
+    ("photos/club-together.jpg", 1920),
+    ("photos/club-hero-wide.jpg", 1920),
     ("brand/club-emblem.png", None),
 )
 

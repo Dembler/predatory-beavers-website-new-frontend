@@ -6,6 +6,7 @@ import AppSelect from '@/components/AppSelect.vue'
 import PlayoffBracket from '@/components/PlayoffBracket.vue'
 import TeamEmblem from '@/components/TeamEmblem.vue'
 import { useLoad } from '@/composables/useLoad'
+import { useLiveRefresh } from '@/composables/useLiveRefresh'
 import { useTeamFilter } from '@/composables/useTeamPreference'
 import { ApiError, apiRequest } from '@/shared/api'
 import { clubCopy } from '@/shared/clubCopy'
@@ -40,11 +41,12 @@ const {
   pending: cataloguePending,
   error: catalogueError,
   load: loadCatalogue,
+  refresh: refreshCatalogue,
 } = useLoad(
   () => apiRequest<ApiResponse<StandingsOptions>>(`/api/v1/standings/options?team=${team.value}`),
   [team],
 )
-const { data, pending, error, load } = useLoad(async () => {
+const { data, pending, error, load, refresh } = useLoad(async () => {
   const query = new URLSearchParams({ team: team.value })
   if (season.value) query.set('season', season.value)
   if (competition.value) query.set('competition_id', competition.value)
@@ -57,6 +59,7 @@ const { data, pending, error, load } = useLoad(async () => {
     throw cause
   }
 }, [team, season, tournament, competition])
+useLiveRefresh(() => Promise.all([refresh(), refreshCatalogue()]))
 
 const snapshot = computed(() => (!pending.value && !error.value ? data.value?.data : null))
 const availableCompetitions = computed(() => {

@@ -182,24 +182,14 @@ test('pagination and filters survive reload, reset their page and restore with b
   await assertNoHorizontalOverflow(page)
 })
 
-test('default season is the latest published season when scheduled dates have already passed', async ({
+test('current season stays selected without published fixtures and the archive stays accessible', async ({
   page,
 }) => {
   await page.clock.setFixedTime(new Date('2026-11-04T09:00:00Z'))
-  const past = fixture(2, {
-    source: 'manual',
-    external_id: null,
-    starts_at: '2026-08-01T15:00:00Z',
-    status: 'scheduled',
-    home_score: null,
-    away_score: null,
-    competition: { id: 'past', name: 'Кубок', season: '2026-2027', active: true },
-  })
   await mockCalendar(
     page,
     [
       calendarItem(fixture(1)),
-      calendarItem(past, { section: 'awaiting' }),
       archiveItem(
         {
           ...womenPlace,
@@ -212,21 +202,23 @@ test('default season is the latest published season when scheduled dates have al
       ),
     ],
     {
-      defaultSeason: (url) =>
-        url.searchParams.get('discipline') === '3x3' ? '2023-2024' : '2025-2026',
+      defaultSeason: '2026-2027',
     },
   )
   await openPage(page, '/matches?team=all')
-  await expect(page.locator('.match-filters__summary')).toContainText('Найдено: 1')
+  await expect(page.locator('.match-filters__summary')).toContainText('Найдено: 0')
   await expect(page.getByRole('combobox', { name: 'Сезон', exact: true })).toContainText(
-    '2025 / 2026',
+    '2026 / 2027 · текущий',
   )
   await expect(page.getByRole('heading', { name: 'Ближайшие', exact: true })).toHaveCount(0)
-  await expect(page.locator('article.match-card')).toHaveCount(1)
+  await expect(page.locator('article.match-card')).toHaveCount(0)
+  await expect(page.locator('.calendar-empty')).toContainText('в текущем сезоне пока нет')
+  await page.locator('.calendar-empty').getByRole('button', { name: 'Все сезоны' }).click()
+  await expect(page.locator('article.match-card')).toHaveCount(2)
   await page.getByRole('combobox', { name: 'Формат игры', exact: true }).click()
-  await page.getByRole('option', { name: '3×3 — на одно кольцо', exact: true }).click()
+  await page.getByRole('option', { name: '3×3', exact: true }).click()
   await expect(page.getByRole('combobox', { name: 'Сезон', exact: true })).toContainText(
-    '2023 / 2024',
+    'Все сезоны',
   )
   await expect(page.locator('article.match-card')).toHaveCount(1)
 })

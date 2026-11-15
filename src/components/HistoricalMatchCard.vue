@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MatchCard from '@/components/MatchCard.vue'
+import TournamentResultCard from '@/components/TournamentResultCard.vue'
 import { resultDate, type PublicResult } from '@/shared/results'
 import type { MatchCardData } from '@/shared/types'
 
-const props = defineProps<{ result: PublicResult }>()
+const props = defineProps<{ result: PublicResult; featured?: boolean }>()
 const match = computed<MatchCardData>(() => {
   const row = props.result
   return {
@@ -47,5 +48,11 @@ const match = computed<MatchCardData>(() => {
 </script>
 
 <template>
-  <MatchCard v-if="result.opponent_name" :match="match" variant="row" />
+  <MatchCard
+    v-if="result.opponent_name"
+    :match="match"
+    :featured="featured"
+    :variant="featured ? 'card' : 'row'"
+  />
+  <TournamentResultCard v-else :result="result" />
 </template>
