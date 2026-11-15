@@ -72,38 +72,13 @@ test('ASB and club profiles with the same UUID keep separate routes, including s
   await expect(page.locator('main h1')).toHaveText(local.full_name)
 })
 
-test('published club profiles remain discoverable when ASB is unavailable and never imply official membership', async ({
-  page,
-}) => {
-  const local = {
-    id: '99999999-9999-4999-8999-999999999999',
-    full_name: 'Игрок из редакционной формы',
-    position: 'Центровой',
-    age_text: null,
-    fact: 'Клубная история',
-    photo: null,
-    team: { id: 'local-women', category: 'women', name: 'Хищные Бобры', slug: 'women', logo: null },
-  }
+test('team page does not show club profiles when ASB is unavailable', async ({ page }) => {
   await page.route('**/api/v1/asb-roster/women', (route) => route.abort('failed'))
-  await page.route('**/api/v1/players?**', (route) =>
-    route.fulfill({ json: { items: [local], total: 1, page: 1, page_size: 24, total_pages: 1 } }),
-  )
-  await page.route(`**/api/v1/players/${local.id}`, (route) =>
-    route.fulfill({ json: { data: local } }),
-  )
   await openPage(page, '/teams/women')
-  const profiles = page.getByRole('region', { name: 'Клубные профили', exact: true })
-  await expect(profiles).toBeVisible()
-  await expect(profiles).toContainText(
-    'Участие в официальной заявке АСБ указано в отдельном составе выше.',
-  )
+  await expect(page.locator('.state-panel__retry')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Клубные профили', exact: true })).toHaveCount(0)
   await expect(page.locator('.roster-player')).toHaveCount(0)
-  await profiles.getByRole('link', { name: /Игрок из редакционной формы/ }).click()
-  await expect(page.locator('main h1')).toHaveText(local.full_name)
-  await expect(page.locator('.local-player-profile__story')).toHaveText(local.fact)
-  await page.locator('.profile-back').click()
-  await expect(page).toHaveURL(/\/teams\/women$/)
-  await expect(profiles.getByRole('link', { name: /Игрок из редакционной формы/ })).toBeVisible()
+  await expect(page.locator('a[href^="/players/local/"]')).toHaveCount(0)
   await assertNoHorizontalOverflow(page)
 })
 
