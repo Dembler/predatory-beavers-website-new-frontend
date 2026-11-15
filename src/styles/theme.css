@@ -2588,9 +2588,13 @@ textarea:disabled {
   color: var(--navy);
   background: white;
   border-radius: 6px;
+  clip-path: inset(50%);
+  pointer-events: none;
   transform: translateY(-180%);
 }
-.skip-link:focus {
+.skip-link:focus-visible {
+  clip-path: none;
+  pointer-events: auto;
   transform: translateY(0);
 }
 .team-switch {
