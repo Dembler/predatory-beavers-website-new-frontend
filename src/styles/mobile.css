@@ -1,3 +1,8 @@
+:root {
+  --mobile-nav-height: 0px;
+  --mobile-nav-offset: 0px;
+}
+
 .mobile-bottom-nav,
 .mobile-menu,
 .mobile-menu-overlay {
@@ -22,6 +27,10 @@ html:has(.admin-page dialog[open]) {
 }
 
 @media (max-width: 900px) {
+  :root {
+    --mobile-nav-height: 70px;
+    --mobile-nav-offset: calc(10px + env(safe-area-inset-bottom));
+  }
   html {
     scroll-padding-block: 88px 104px;
     -webkit-text-size-adjust: 100%;
@@ -119,10 +128,11 @@ html:has(.admin-page dialog[open]) {
     position: fixed;
     z-index: 40;
     right: 12px;
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    bottom: var(--mobile-nav-offset);
     left: 12px;
     display: grid;
     width: min(480px, calc(100% - 24px));
+    min-height: var(--mobile-nav-height);
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     margin-inline: auto;

@@ -1,0 +1,21 @@
+Use case: style-transfer and identity-preserving edit.
+Asset type: two production mascot poses for the Bobrik basketball club website.
+
+Input image 1 is the edit target and the primary visual identity: the friendly brown beaver holding a basketball, in a royal blue uniform and red sneakers.
+Input image 2 is a supporting pose reference: the same beaver giving a thumbs-up. The existing two files have slight inconsistencies. Resolve them into ONE definitive character, not two alternatives.
+
+Produce one clean landscape character sheet with exactly TWO full-body poses side by side. Left half: holding the orange basketball as in image 1. Right half: thumbs-up as in image 2, without a basketball. Keep a clear empty margin between the two figures. Both figures must fit completely in their respective halves, including ears, flat beaver tails, fingers, and red shoes. Keep the feet on the same baseline, heads at the same height, and the character at exactly the same scale.
+
+LOCKED IDENTITY IN BOTH POSES:
+Use the SAME head, face silhouette, ear shape, warm brown fur palette, eye shape and gaze, broad glossy black nose, two large white incisors, friendly smile, body proportions, muscular but rounded arms, shorts, flat textured tail, and red-and-white sneakers. Make these parts look like copies of the same master drawing. Only the left arm/hand and ball differ between poses. The other hand stays on the hip. Keep exactly two arms and two legs.
+
+LOCKED UNIFORM IN BOTH POSES:
+Use image 1's royal-blue sleeveless jersey and shorts, crisp white piping and matching fabric shading. Use the same chest design in both: the two small chest emblems and the centered university name from image 1, with a large white "100" on the chest and a smaller white "100" on the shorts. Exact university text: "ВОРОНЕЖСКИЙ ГОСУДАРСТВЕННЫЙ УНИВЕРСИТЕТ". Do not copy image 2's different emblems or federation wording. Do not invent additional sponsor logos or symbols.
+
+STYLE:
+Retain the polished hand-drawn 2D sports mascot illustration style of the supplied images: confident clean dark outlines, controlled warm fur texture, coherent soft shading, vivid royal blue, orange basketball and red sneakers. Refine small uneven edges and make the silhouette and facial expression immediately readable at small website sizes. Avoid excessive new fur strands, photorealism, 3D toy rendering, anime, childish redesign, or a different species.
+
+BACKDROP:
+Every background pixel must be one perfectly uniform solid chroma magenta #FF00FF. No gradients, halos, glow, vignette, cast shadow, floor, texture, labels, border, panels, divider, signature or watermark. Keep all real character colors natural; no magenta lighting or reflections on the fur or clothing. The background will be removed locally for true alpha transparency.
+
+Do not redesign the character. Deliver the same clear, consistent beaver in the two supplied poses, with identical face, costume and proportions.

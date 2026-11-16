@@ -59,6 +59,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': backendProxy,
         '/media': backendProxy,
+        ...(env.VITE_MASCOT_ENABLED === 'true'
+          ? { '/news': { ...backendProxy, changeOrigin: false } }
+          : {}),
       },
     },
     preview: {

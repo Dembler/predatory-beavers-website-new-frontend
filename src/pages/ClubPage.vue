@@ -320,7 +320,11 @@ async function readChapter(id: string) {
       </div>
     </section>
     <ClubTournamentHistory />
-    <section class="section section--light club-full-history" aria-labelledby="club-history-title">
+    <section
+      id="history"
+      class="section section--light club-full-history"
+      aria-labelledby="club-history-title"
+    >
       <div class="container">
         <div class="club-section-heading">
           <h2 id="club-history-title">Архив истории</h2>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useRoute } from 'vue-router'
 import { preferredTeamPath } from '@/composables/useTeamPreference'
@@ -26,6 +26,10 @@ import {
   DialogTrigger,
 } from 'reka-ui'
 
+const mascotEnabled = import.meta.env.DEV && import.meta.env.VITE_MASCOT_ENABLED === 'true'
+const BobrikWidget = mascotEnabled
+  ? defineAsyncComponent(() => import('@/components/mascot/BobrikWidget.vue'))
+  : null
 const menuOpen = ref(false)
 const headerCompact = ref(false)
 const route = useRoute()
@@ -187,6 +191,7 @@ function bottomActive(to: string) {
             >
               {{ link.label }}
             </RouterLink>
+            <a v-if="mascotEnabled" class="nav-link" href="/news">Колонка Бобрика</a>
           </nav>
         </div>
       </header>
@@ -216,6 +221,9 @@ function bottomActive(to: string) {
               <component :is="link.icon" aria-hidden="true" />
               <span>{{ link.label }}</span>
             </RouterLink>
+            <a v-if="mascotEnabled" href="/news">
+              <BookOpen aria-hidden="true" /><span>Колонка Бобрика</span>
+            </a>
           </nav>
           <RouterLink class="mobile-menu__admin" to="/admin" @click="menuOpen = false">
             <Settings2 aria-hidden="true" />
@@ -270,4 +278,5 @@ function bottomActive(to: string) {
       </VGlass>
     </div>
   </DialogRoot>
+  <BobrikWidget v-if="mascotEnabled" />
 </template>

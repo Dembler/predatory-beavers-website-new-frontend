@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "id": "bobrik",
+  "displayName": "Бобрик",
+  "origin": "User-supplied illustrations, unified by deterministic compositing; supplied pose transforms only",
+  "sources": [
+    {
+      "file": "bobrik-thumbsup.png",
+      "sha256": "05dc522475c897490418e304618483d63e79d5f8fabdd8933cde7b910bf28bf1"
+    },
+    {
+      "file": "bobrik-ball.png",
+      "sha256": "ff52e939e692d94dcc6615c133073c3feaf6fbc21c0863911adbabafaa5d7d57"
+    }
+  ],
+  "spriteVersion": 1,
+  "image": {
+    "file": "spritesheet.webp",
+    "width": 1536,
+    "height": 1872,
+    "frameWidth": 192,
+    "frameHeight": 208,
+    "columns": 8,
+    "rows": 9,
+    "sha256": "36fda6e3927d5e0dbddcfea2b0c8bef7837ff86627df610862bd7b6bde2c6983",
+    "webpQuality": "lossless"
+  },
+  "launcher": {
+    "file": "launcher.webp",
+    "width": 192,
+    "height": 208,
+    "sha256": "c01f0669efc7089acbbbf41a0c6a075fc60e9e88aaebe9994993e3bb0b221773",
+    "matches": "decoded idle frame 0, pixel for pixel"
+  },
+  "defaultClip": "idle",
+  "coordinateConvention": "zero-based row and column; x=column*frameWidth; y=row*frameHeight",
+  "clips": {
+    "idle": {
+      "row": 0,
+      "durationsMs": [
+        1680,
+        660,
+        660,
+        840,
+        840,
+        1920
+      ],
+      "frameCount": 6
+    },
+    "running-right": {
+      "row": 1,
+      "durationsMs": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        220
+      ],
+      "frameCount": 8
+    },
+    "running-left": {
+      "row": 2,
+      "durationsMs": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        220
+      ],
+      "frameCount": 8
+    },
+    "waving": {
+      "row": 3,
+      "durationsMs": [
+        140,
+        140,
+        140,
+        280
+      ],
+      "frameCount": 4
+    },
+    "jumping": {
+      "row": 4,
+      "durationsMs": [
+        140,
+        140,
+        140,
+        140,
+        280
+      ],
+      "frameCount": 5
+    },
+    "failed": {
+      "row": 5,
+      "durationsMs": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        240
+      ],
+      "frameCount": 8
+    },
+    "waiting": {
+      "row": 6,
+      "durationsMs": [
+        150,
+        150,
+        150,
+        150,
+        150,
+        260
+      ],
+      "frameCount": 6
+    },
+    "running": {
+      "row": 7,
+      "durationsMs": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        220
+      ],
+      "frameCount": 6
+    },
+    "review": {
+      "row": 8,
+      "durationsMs": [
+        150,
+        150,
+        150,
+        150,
+        150,
+        280
+      ],
+      "frameCount": 6
+    }
+  },
+  "notes": "Legacy clip names retain renderer compatibility. Scroll clips gently sway/tilt the entire pose; they do not depict a generated walking gait. Text is never mirrored. Launcher is static outside scrolling."
+}

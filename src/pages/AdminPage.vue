@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminCollection from '@/components/admin/AdminCollection.vue'
 import AdminMedia from '@/components/admin/AdminMedia.vue'
@@ -17,6 +17,11 @@ import type {
   Team,
   Venue,
 } from '@/shared/types'
+
+const editorialEnabled = import.meta.env.DEV && import.meta.env.VITE_MASCOT_ENABLED === 'true'
+const AdminEditorial = editorialEnabled
+  ? defineAsyncComponent(() => import('@/components/admin/AdminEditorial.vue'))
+  : null
 
 const { user, canEdit, sessionExpired, restore, login, logout } = useAuth()
 const route = useRoute()
@@ -50,6 +55,7 @@ const tabs = [
   { key: 'competitions', label: 'Турниры' },
   { key: 'venues', label: 'Залы' },
   { key: 'imports', label: 'Обновление данных' },
+  ...(editorialEnabled ? [{ key: 'editorial', label: 'Колонка Бобрика' }] : []),
 ]
 const tab = computed(() =>
   tabs.some((item) => item.key === route.query.tab) ? String(route.query.tab) : 'players',
@@ -67,7 +73,7 @@ const navigationGroups = [
     keys: ['history', 'rules', 'player_roles', 'viewing_tips', 'contact_channels'],
   },
   { title: 'Медиатека', keys: ['media'] },
-  { title: 'Автоматизация', keys: ['imports'] },
+  { title: 'Автоматизация', keys: ['imports', ...(editorialEnabled ? ['editorial'] : [])] },
 ].map((group) => ({
   ...group,
   items: group.keys.map((key) => tabs.find((item) => item.key === key)!),
@@ -973,6 +979,7 @@ const config = computed((): AdminConfig => {
             </div>
             <AdminMedia v-if="tab === 'media'" @changed="refreshMedia" />
             <AdminSportsSync v-else-if="tab === 'imports'" />
+            <AdminEditorial v-else-if="editorialEnabled && tab === 'editorial'" />
             <AdminCollection
               v-else
               :key="tab"
