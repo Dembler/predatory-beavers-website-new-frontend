@@ -1,0 +1,5 @@
+.gitattributes text eol=lf
+*.md text eol=lf
+reference-pet/bars-up/animation.json text eol=lf
+reference-pet/bars-up/pet.json -text whitespace=cr-at-eol
+reference-pet/bars-up/spritesheet.webp binary

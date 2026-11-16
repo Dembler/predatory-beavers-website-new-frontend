@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "bars-up",
+  "displayName": "Bars Up",
+  "origin": "Codex custom pet; animation metadata reconstructed from the installed sprite contract",
+  "spriteVersion": 1,
+  "image": {
+    "file": "spritesheet.webp",
+    "width": 1536,
+    "height": 1872,
+    "frameWidth": 192,
+    "frameHeight": 208,
+    "columns": 8,
+    "rows": 9,
+    "sha256": "6c19b3f10d9b6d26066e35f394b3999c725c9a6e55f90744b90305379930e9ce"
+  },
+  "defaultClip": "idle",
+  "coordinateConvention": "zero-based row and column; x=column*frameWidth; y=row*frameHeight",
+  "idleTiming": "native idle frame durations multiplied by 6 for the slow idle cycle",
+  "clips": {
+    "idle": { "row": 0, "frameCount": 6, "durationsMs": [1680, 660, 660, 840, 840, 1920], "loop": true },
+    "running-right": { "row": 1, "frameCount": 8, "durationsMs": [120, 120, 120, 120, 120, 120, 120, 220] },
+    "running-left": { "row": 2, "frameCount": 8, "durationsMs": [120, 120, 120, 120, 120, 120, 120, 220] },
+    "waving": { "row": 3, "frameCount": 4, "durationsMs": [140, 140, 140, 280] },
+    "jumping": { "row": 4, "frameCount": 5, "durationsMs": [140, 140, 140, 140, 280] },
+    "failed": { "row": 5, "frameCount": 8, "durationsMs": [140, 140, 140, 140, 140, 140, 140, 240] },
+    "waiting": { "row": 6, "frameCount": 6, "durationsMs": [150, 150, 150, 150, 150, 260] },
+    "running": { "row": 7, "frameCount": 6, "durationsMs": [120, 120, 120, 120, 120, 220] },
+    "review": { "row": 8, "frameCount": 6, "durationsMs": [150, 150, 150, 150, 150, 280] }
+  },
+  "defaultNonIdleTransition": { "repeatCount": 3, "then": "idle" },
+  "notes": "Non-idle clips may be explicitly looped by a future player. This JSON does not integrate a player into the website."
+}
