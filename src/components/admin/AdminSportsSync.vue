@@ -31,6 +31,8 @@ const loading = ref(false)
 const error = ref('')
 const sourceLabels: Record<string, string> = {
   asb_games_men: 'АСБ · матчи мужчин',
+  asb_match_statistics_men: 'АСБ · статистика матчей мужчин',
+  asb_match_statistics_women: 'АСБ · статистика матчей девушек',
   asb_games_women: 'АСБ · матчи девушек',
   asb_standings_men: 'АСБ · таблица мужчин',
   asb_standings_women: 'АСБ · таблица девушек',

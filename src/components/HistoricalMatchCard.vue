@@ -12,6 +12,8 @@ const match = computed<MatchCardData>(() => {
     id: row.id,
     source: row.source,
     external_id: row.external_id,
+    discipline: row.discipline,
+    score_by_periods: row.score_by_periods,
     team_id: row.team,
     team: { id: row.team, name: row.team_name, slug: row.team, category: row.team, logo: null },
     competition_id: `archive-${row.tournament}`,

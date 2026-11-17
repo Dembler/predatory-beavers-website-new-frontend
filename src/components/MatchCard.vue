@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import TeamEmblem from '@/components/TeamEmblem.vue'
+import MatchPeriodScores from '@/components/MatchPeriodScores.vue'
 import type { MatchCardData } from '@/shared/types'
 
 type KnownStatus = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled' | 'unpublished'
@@ -26,6 +27,13 @@ const props = withDefaults(
 )
 
 const isRow = computed(() => props.variant === 'row')
+const showPeriods = computed(
+  () =>
+    !!props.match.score_by_periods?.length &&
+    props.match.discipline !== '3x3' &&
+    props.match.discipline !== 'phygital' &&
+    ['finished', 'live'].includes(props.match.status),
+)
 const status = computed<DisplayStatus>(() =>
   (KNOWN_STATUSES as readonly string[]).includes(props.match.status)
     ? (props.match.status as KnownStatus)
@@ -298,6 +306,7 @@ const fullDateLabel = computed(
     </footer>
 
     <p v-if="stage" class="match-card__stage">{{ stage }}</p>
+    <MatchPeriodScores v-if="showPeriods" :match="match" />
   </article>
 
   <article
@@ -423,6 +432,7 @@ const fullDateLabel = computed(
     </div>
 
     <p v-if="stage" class="match-card__stage match-card__stage--row">{{ stage }}</p>
+    <MatchPeriodScores v-if="showPeriods" :match="match" />
   </article>
 </template>
 

@@ -15,7 +15,10 @@ export type Team = components['schemas']['TeamRead']
 export type Player = components['schemas']['PublicPlayerRead']
 export type Competition = components['schemas']['CompetitionRead']
 export type Venue = components['schemas']['VenueRead']
+/** Published non-cumulative period scores, always from the club's perspective. */
+export type MatchPeriodScore = components['schemas']['ScoreByPeriod']
 export type Match = components['schemas']['MatchRead'] & {
+  discipline?: '5x5' | '3x3' | 'phygital'
   /** Archive records may omit a precise day or tip-off time. */
   display_date?: string
   date_precision?: 'day' | 'month' | 'year'

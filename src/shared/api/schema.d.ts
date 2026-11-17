@@ -296,6 +296,23 @@ export interface paths {
     patch: operations['update_content_api_v1_admin_content__block_id__patch']
     trace?: never
   }
+  '/api/v1/game-statistics/{source}/{external_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Game Statistics */
+    get: operations['game_statistics_api_v1_game_statistics__source___external_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/competitions': {
     parameters: {
       query?: never
@@ -775,6 +792,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/admin/imports/sports-sync': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Sports Sync Status */
+    get: operations['sports_sync_status_api_v1_admin_imports_sports_sync_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/admin/imports/{job_id}': {
     parameters: {
       query?: never
@@ -971,6 +1005,296 @@ export interface paths {
     }
     /** Get Roster Player Photo */
     get: operations['get_roster_player_photo_api_v1_asb_roster__team__players__player_id__photo_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/mascot/session': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Session */
+    post: operations['create_session_api_v1_mascot_session_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/mascot/chat/runs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Chat Run */
+    post: operations['create_chat_run_api_v1_mascot_chat_runs_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/mascot/chat/runs/{run_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Run Status */
+    get: operations['get_run_status_api_v1_mascot_chat_runs__run_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/mascot/chat/runs/{run_id}/events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Run Events */
+    get: operations['run_events_api_v1_mascot_chat_runs__run_id__events_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/mascot/chat/runs/{run_id}/cancel': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Cancel Chat Run */
+    post: operations['cancel_chat_run_api_v1_mascot_chat_runs__run_id__cancel_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/admin/editorial/jobs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Jobs */
+    get: operations['jobs_api_v1_admin_editorial_jobs_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/admin/editorial/generate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Generate */
+    post: operations['generate_api_v1_admin_editorial_generate_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/admin/editorial/jobs/{job_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Job */
+    get: operations['get_job_api_v1_admin_editorial_jobs__job_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/admin/editorial/jobs/{job_id}/cancel': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Cancel Job */
+    post: operations['cancel_job_api_v1_admin_editorial_jobs__job_id__cancel_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/admin/articles': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Admin Articles */
+    get: operations['admin_articles_api_v1_admin_articles_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/admin/articles/{article_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Admin Article */
+    get: operations['admin_article_api_v1_admin_articles__article_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /** Edit Article */
+    patch: operations['edit_article_api_v1_admin_articles__article_id__patch']
+    trace?: never
+  }
+  '/api/v1/admin/articles/{article_id}/{action}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Article Action */
+    post: operations['article_action_api_v1_admin_articles__article_id___action__post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/articles': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Articles */
+    get: operations['articles_api_v1_articles_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/articles/{slug}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Article */
+    get: operations['article_api_v1_articles__slug__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/news': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** News */
+    get: operations['news_news_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/news/rss.xml': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Rss */
+    get: operations['rss_news_rss_xml_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/news/{slug}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** News Article */
+    get: operations['news_article_news__slug__get']
     put?: never
     post?: never
     delete?: never
@@ -1307,6 +1631,17 @@ export interface components {
       message: string
       data?: components['schemas']['TournamentsRead'] | null
     }
+    /** ApiResponse[Union[GameStatisticsRead, NoneType]] */
+    ApiResponse_Union_GameStatisticsRead__NoneType__: {
+      /**
+       * Status
+       * @default success
+       */
+      status: string
+      /** Message */
+      message: string
+      data?: components['schemas']['GameStatisticsRead'] | null
+    }
     /** ApiResponse[UserRead] */
     ApiResponse_UserRead_: {
       /**
@@ -1328,6 +1663,20 @@ export interface components {
       /** Message */
       message: string
       data?: components['schemas']['VenueRead'] | null
+    }
+    /** ApiResponse[dict[str, Any]] */
+    ApiResponse_dict_str__Any__: {
+      /**
+       * Status
+       * @default success
+       */
+      status: string
+      /** Message */
+      message: string
+      /** Data */
+      data?: {
+        [key: string]: unknown
+      } | null
     }
     /** ApiResponse[dict[str, object]] */
     ApiResponse_dict_str__object__: {
@@ -1394,6 +1743,8 @@ export interface components {
       club_score: number | null
       /** Opponent Score */
       opponent_score: number | null
+      /** Score By Periods */
+      score_by_periods?: components['schemas']['ScoreByPeriod'][]
       /** Place */
       place: number | null
       /** Status */
@@ -1535,11 +1886,72 @@ export interface components {
        */
       at: string
     }
+    /** CancelResult */
+    CancelResult: {
+      /**
+       * Run Id
+       * Format: uuid
+       */
+      run_id: string
+      /** Status */
+      status: string
+    }
+    /** ChatRunAccepted */
+    ChatRunAccepted: {
+      /**
+       * Run Id
+       * Format: uuid
+       */
+      run_id: string
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string
+      /** Status */
+      status: string
+      /** Events Url */
+      events_url: string
+    }
+    /** ChatRunCreate */
+    ChatRunCreate: {
+      /**
+       * Client Request Id
+       * Format: uuid
+       */
+      client_request_id: string
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string
+      /** Message */
+      message: string
+      context?: components['schemas']['MascotContext'] | null
+    }
     /**
      * ClubSide
      * @enum {string}
      */
     ClubSide: 'home' | 'away'
+    /** ColumnDraft */
+    ColumnDraft: {
+      /** Title */
+      title: string
+      /** Lead */
+      lead: string
+      /** Sections */
+      sections: components['schemas']['ColumnSection'][]
+    }
+    /** ColumnSection */
+    ColumnSection: {
+      /** Heading */
+      heading: string
+      /** Body */
+      body: string
+      /** Fact Ids */
+      fact_ids?: string[]
+    }
     /** CompetitionCreate */
     CompetitionCreate: {
       /** Name */
@@ -1741,6 +2153,107 @@ export interface components {
        */
       expires_at: string
     }
+    /** EditRequest */
+    EditRequest: {
+      /** Expected Version */
+      expected_version: number
+      /**
+       * Revision Id
+       * Format: uuid
+       */
+      revision_id: string
+      content: components['schemas']['ColumnDraft']
+    }
+    /** GameStatisticsRead */
+    GameStatisticsRead: {
+      /**
+       * Source
+       * @default asb
+       * @constant
+       */
+      source: 'asb'
+      /** External Id */
+      external_id: string
+      /**
+       * Team
+       * @enum {string}
+       */
+      team: 'men' | 'women'
+      /** Season */
+      season: string
+      /**
+       * Discipline
+       * @default 5x5
+       * @constant
+       */
+      discipline: '5x5'
+      /**
+       * Club Side
+       * @enum {string}
+       */
+      club_side: 'home' | 'away'
+      /** Home Team Name */
+      home_team_name: string
+      /** Away Team Name */
+      away_team_name: string
+      /** Home External Team Id */
+      home_external_team_id: string
+      /** Away External Team Id */
+      away_external_team_id: string
+      /** Home Score */
+      home_score: number | null
+      /** Away Score */
+      away_score: number | null
+      /** Source Url */
+      source_url: string
+      /**
+       * Fetched At
+       * Format: date-time
+       */
+      fetched_at: string
+      /**
+       * Source Label
+       * @default Официальный протокол АСБ
+       */
+      source_label: string
+      /** Period Scores */
+      period_scores?: components['schemas']['PeriodScore'][]
+      /** Box Score */
+      box_score?: components['schemas']['PlayerBoxScore'][]
+      /**
+       * Player Periods Status
+       * @default unavailable
+       * @enum {string}
+       */
+      player_periods_status: 'available' | 'partial' | 'unavailable'
+      /** Warnings */
+      warnings?: string[]
+    }
+    /** GenerateRequest */
+    GenerateRequest: {
+      /**
+       * Week Start
+       * Format: date
+       */
+      week_start: string
+      /**
+       * Team Scope
+       * @default both
+       * @enum {string}
+       */
+      team_scope: 'men' | 'women' | 'both'
+      /**
+       * Discipline
+       * @default all
+       * @enum {string}
+       */
+      discipline: '5x5' | '3x3' | 'phygital' | 'all'
+      /**
+       * Brief
+       * @default
+       */
+      brief: string
+    }
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -1844,6 +2357,13 @@ export interface components {
        */
       logged_out: boolean
     }
+    /** MascotContext */
+    MascotContext: {
+      /** Page */
+      page?: string | null
+      /** Team */
+      team?: ('men' | 'women') | null
+    }
     /** MatchCreate */
     MatchCreate: {
       /**
@@ -1934,6 +2454,8 @@ export interface components {
       home_score: number | null
       /** Away Score */
       away_score: number | null
+      /** Score By Periods */
+      score_by_periods?: components['schemas']['ScoreByPeriod'][]
       status: components['schemas']['MatchStatus']
       /** Source */
       source: string
@@ -2277,6 +2799,49 @@ export interface components {
       /** Total Pages */
       total_pages: number
     }
+    /** PeriodPlayerStatistics */
+    PeriodPlayerStatistics: {
+      /** Period */
+      period: number
+      statistics: components['schemas']['PlayerGameStats']
+    }
+    /** PeriodScore */
+    PeriodScore: {
+      /** Number */
+      number: number
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'quarter' | 'overtime'
+      /** Label */
+      label: string
+      /** Home Score */
+      home_score: number
+      /** Away Score */
+      away_score: number
+    }
+    /** PlayerBoxScore */
+    PlayerBoxScore: {
+      /** External Player Id */
+      external_player_id: string
+      /** Full Name */
+      full_name: string
+      /** Jersey Number */
+      jersey_number?: string | null
+      /**
+       * Team Side
+       * @enum {string}
+       */
+      team_side: 'home' | 'away'
+      /** Is Starter */
+      is_starter?: boolean | null
+      /** Played */
+      played?: boolean | null
+      statistics: components['schemas']['PlayerGameStats']
+      /** Period Statistics */
+      period_statistics?: components['schemas']['PeriodPlayerStatistics'][]
+    }
     /** PlayerCreate */
     PlayerCreate: {
       /**
@@ -2306,6 +2871,43 @@ export interface components {
        * @default true
        */
       active: boolean
+    }
+    /** PlayerGameStats */
+    PlayerGameStats: {
+      /** Points */
+      points?: number | null
+      /** Rebounds */
+      rebounds?: number | null
+      /** Offensive Rebounds */
+      offensive_rebounds?: number | null
+      /** Defensive Rebounds */
+      defensive_rebounds?: number | null
+      /** Assists */
+      assists?: number | null
+      /** Steals */
+      steals?: number | null
+      /** Blocks */
+      blocks?: number | null
+      /** Turnovers */
+      turnovers?: number | null
+      /** Fouls */
+      fouls?: number | null
+      /** Minutes Seconds */
+      minutes_seconds?: number | null
+      /** Free Throws Made */
+      free_throws_made?: number | null
+      /** Free Throws Attempted */
+      free_throws_attempted?: number | null
+      /** Two Points Made */
+      two_points_made?: number | null
+      /** Two Points Attempted */
+      two_points_attempted?: number | null
+      /** Three Points Made */
+      three_points_made?: number | null
+      /** Three Points Attempted */
+      three_points_attempted?: number | null
+      /** Plus Minus */
+      plus_minus?: number | null
     }
     /** PlayerRead */
     PlayerRead: {
@@ -2436,6 +3038,16 @@ export interface components {
       /** Message */
       message: string
     }
+    /** RevisionAction */
+    RevisionAction: {
+      /** Expected Version */
+      expected_version: number
+      /**
+       * Revision Id
+       * Format: uuid
+       */
+      revision_id: string
+    }
     /** RosterPlayerDetail */
     RosterPlayerDetail: {
       /** Team */
@@ -2528,6 +3140,47 @@ export interface components {
       fetched_at: string | null
       /** Players */
       players: components['schemas']['RosterPlayerRead'][]
+    }
+    /** RunStatusRead */
+    RunStatusRead: {
+      /**
+       * Run Id
+       * Format: uuid
+       */
+      run_id: string
+      /** Status */
+      status: string
+      /** Last Seq */
+      last_seq: number
+    }
+    /**
+     * ScoreByPeriod
+     * @description Compact card score, always oriented club/opponent.
+     */
+    ScoreByPeriod: {
+      /** Number */
+      number: number
+      /** Label */
+      label: string
+      /** Club Score */
+      club_score: number
+      /** Opponent Score */
+      opponent_score: number
+    }
+    /** SessionRead */
+    SessionRead: {
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string
+      /** Csrf Token */
+      csrf_token: string
+      /**
+       * Expires At
+       * Format: date-time
+       */
+      expires_at: string
     }
     /** StandingRow */
     'StandingRow-Input': {
@@ -3749,6 +4402,38 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['ApiResponse_ContentRead_']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  game_statistics_api_v1_game_statistics__source___external_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        source: string
+        external_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_Union_GameStatisticsRead__NoneType__']
         }
       }
       /** @description Validation Error */
@@ -5199,6 +5884,26 @@ export interface operations {
       }
     }
   }
+  sports_sync_status_api_v1_admin_imports_sports_sync_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__Any__']
+        }
+      }
+    }
+  }
   get_import_job_api_v1_admin_imports__job_id__get: {
     parameters: {
       query?: never
@@ -5561,6 +6266,515 @@ export interface operations {
           [name: string]: unknown
         }
         content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_session_api_v1_mascot_session_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SessionRead']
+        }
+      }
+    }
+  }
+  create_chat_run_api_v1_mascot_chat_runs_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChatRunCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChatRunAccepted']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_run_status_api_v1_mascot_chat_runs__run_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunStatusRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  run_events_api_v1_mascot_chat_runs__run_id__events_get: {
+    parameters: {
+      query?: {
+        after_seq?: number
+      }
+      header?: {
+        'Last-Event-ID'?: string | null
+      }
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  cancel_chat_run_api_v1_mascot_chat_runs__run_id__cancel_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CancelResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  jobs_api_v1_admin_editorial_jobs_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+    }
+  }
+  generate_api_v1_admin_editorial_generate_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GenerateRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_job_api_v1_admin_editorial_jobs__job_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  cancel_job_api_v1_admin_editorial_jobs__job_id__cancel_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  admin_articles_api_v1_admin_articles_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+    }
+  }
+  admin_article_api_v1_admin_articles__article_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        article_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  edit_article_api_v1_admin_articles__article_id__patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        article_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EditRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  article_action_api_v1_admin_articles__article_id___action__post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        article_id: string
+        action: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RevisionAction']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  articles_api_v1_articles_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+    }
+  }
+  article_api_v1_articles__slug__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        slug: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApiResponse_dict_str__object__']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  news_news_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'text/html': string
+        }
+      }
+    }
+  }
+  rss_news_rss_xml_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+    }
+  }
+  news_article_news__slug__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        slug: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'text/html': string
+        }
       }
       /** @description Validation Error */
       422: {
