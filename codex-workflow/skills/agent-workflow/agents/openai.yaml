@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent workflow"
+  short_description: "Разработка по этапам с состоянием и проверками"
+  default_prompt: "Используй $agent-workflow для разработки задачи по этапам с проверками и независимым ревью."

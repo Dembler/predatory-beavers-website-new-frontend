@@ -1,0 +1,9 @@
+* text eol=lf
+PACKAGE-MANIFEST.json -text
+agents/** -text
+skills/** -text
+tests/** -text
+install.py -text
+verify_install.py -text
+README.md -text
+.gitignore -text

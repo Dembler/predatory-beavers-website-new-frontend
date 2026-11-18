@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workflow code review"
+  short_description: "Независимое ревью кода и результатов проверок"
+  default_prompt: "Используй $code-review для независимой проверки текущей реализации по спецификации."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "To spec"
+  short_description: "Спецификация поведения и критериев приёмки"
+  default_prompt: "Используй $to-spec для подготовки спецификации по подтверждённым требованиям."

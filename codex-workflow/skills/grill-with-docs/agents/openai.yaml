@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grill with docs"
+  short_description: "Уточнение требований по коду и документации"
+  default_prompt: "Используй $grill-with-docs, чтобы уточнить задачу по коду и первичным источникам."

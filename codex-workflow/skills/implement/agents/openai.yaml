@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement workflow tickets"
+  short_description: "Реализация готовых задач с фиксацией проверок"
+  default_prompt: "Используй $implement, чтобы выполнить готовые задачи текущего запуска и проверить результат."

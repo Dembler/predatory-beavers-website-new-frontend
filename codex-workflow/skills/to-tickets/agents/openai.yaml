@@ -1,0 +1,4 @@
+interface:
+  display_name: "To tickets"
+  short_description: "Локальные задачи с зависимостями и проверками"
+  default_prompt: "Используй $to-tickets для декомпозиции спецификации на проверяемые локальные задачи."
